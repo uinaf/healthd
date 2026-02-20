@@ -19,6 +19,20 @@ Replace cron-based health checks with a local daemon that:
 - `healthd notify test`
 - `healthd daemon install|uninstall|status|logs`
 
+## Local verification
+
+Run the same checks used in CI (format, lint, tests, coverage threshold):
+
+```bash
+go run ./cmd/verify
+```
+
+Coverage threshold defaults to `90%` and can be overridden when needed:
+
+```bash
+go run ./cmd/verify --min-coverage=90
+```
+
 ## Status
 
 Bootstrapped repository + issue plan created.
