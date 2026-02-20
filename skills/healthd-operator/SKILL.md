@@ -19,8 +19,9 @@ Use this skill for practical host operations. Prefer reversible steps and show c
    - Confirm OS/user, repo vs installed binary, config path (`--config` / `HEALTHD_CONFIG` / default).
    - Check if daemon is already installed: `healthd daemon status`.
 2. **Install/build binary**
-   - For local dev: `go build -o ./bin/healthd .`
-   - For user install: `go install .` (or move built binary into PATH).
+   - Preferred direct install: `curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash`
+   - Optional pinned version: `curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash -s -- v0.1.0`
+   - Source fallback for local dev: `go build -o ./bin/healthd .` or `go install .`.
 3. **First-run config bootstrap**
    - Run `healthd init` (default: `~/.config/healthd/config.toml`).
    - Use `healthd init --config <path>` for non-default location.
