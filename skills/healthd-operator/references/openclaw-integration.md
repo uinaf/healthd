@@ -32,8 +32,11 @@ healthd --help
 ## 3) Baseline config bootstrap
 
 ```bash
-mkdir -p ~/.config/healthd
-cp ~/projects/healthd/examples/current-host.toml ~/.config/healthd/config.toml
+healthd init
+# custom path:
+# healthd init --config /path/to/config.toml
+# overwrite existing file only if intended:
+# healthd init --config /path/to/config.toml --force
 $EDITOR ~/.config/healthd/config.toml
 ```
 

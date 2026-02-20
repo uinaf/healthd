@@ -19,32 +19,41 @@ Use this skill for practical host operations. Prefer reversible steps and show c
    - Confirm OS/user, repo vs installed binary, config path (`--config` / `HEALTHD_CONFIG` / default).
    - Check if daemon is already installed: `healthd daemon status`.
 2. **Install/build binary**
-   - For local dev: `go build -o ./bin/healthd .`
-   - For user install: `go install .` (or move built binary into PATH).
-3. **Generate baseline config**
-   - Start from `examples/current-host.toml` and adapt checks/backends.
-   - Write config to `~/.config/healthd/config.toml` unless user specifies another path.
-4. **Validate + one-shot checks**
+   - Preferred direct install: `curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash`
+   - Optional pinned version: `curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash -s -- v0.1.0`
+   - Source fallback for local dev: `go build -o ./bin/healthd .` or `go install .`.
+3. **First-run config bootstrap**
+   - Run `healthd init` (default: `~/.config/healthd/config.toml`).
+   - Use `healthd init --config <path>` for non-default location.
+   - If file exists, use `healthd init --config <path> --force` only with explicit confirmation.
+4. **Quick validation and smoke checks**
    - `healthd validate --config <path>`
-   - `healthd check --config <path>` and `--json` when automation output is needed.
-5. **Daemon install/status/logs**
+   - `healthd check --config <path>` (`--json` for automation output).
+5. **Quick notify test (ntfy easiest path)**
+   - Add an `ntfy` backend topic in config if none exists.
+   - Run `healthd notify test --config <path> --backend <name-or-type>`.
+6. **Daemon install/status/logs**
    - Install: `healthd daemon install --config <path>`
    - Verify: `healthd daemon status`
    - Inspect logs: `healthd daemon logs --lines 100`
-6. **Notification test**
-   - `healthd notify test --config <path>`
-   - Optionally narrow with `--backend <name-or-type>`.
 7. **Rollback/uninstall**
    - `healthd daemon uninstall`
-   - Restore prior scheduler (for example cron) only after confirmation.
+   - Restore prior scheduler (for example cron) only after confirmation and with exact command captured in session notes.
 
 ## Troubleshooting checklist
 
 - Config parse/validation fails: run `healthd validate --config <path>` and fix unknown keys/types.
+- `healthd init` fails with existing file: rerun with `--force` only if overwrite is intended.
 - No checks run: verify `[[check]]` entries and any `--only/--group` filters.
 - Daemon not running: check `healthd daemon status` and `healthd daemon logs --lines 100`.
 - Alerts not sent: verify notifier blocks and run `healthd notify test --backend <name>`.
 - Command checks flaky: increase `timeout`, run command manually, then retest with `healthd check`.
+
+## Rollback hints
+
+- Keep a backup before risky edits: `cp <path> <path>.bak`.
+- To rollback config quickly: `cp <path>.bak <path>`, then `healthd validate --config <path>`.
+- If daemon behavior regresses, uninstall first, then restore previous scheduler only after confirmation.
 
 ## References
 
