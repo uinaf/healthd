@@ -37,3 +37,9 @@ go run ./cmd/verify --min-coverage=50
 
 Bootstrapped repository + issue plan created.
 Implementation starts with config + validation and proceeds as stacked PRs.
+
+## Rollout Docs
+
+- Migration guide: `docs/rollout.md`
+- Operational runbook: `docs/runbook.md`
+- Default host config example: `examples/current-host.toml`
