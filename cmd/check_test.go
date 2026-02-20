@@ -7,9 +7,38 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+type checkCommandResult struct {
+	stdout string
+	stderr string
+	err    error
+}
+
+func executeCheckCommand(t *testing.T, args ...string) checkCommandResult {
+	t.Helper()
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	root := NewRootCommand()
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	err := root.Execute()
+	return checkCommandResult{
+		stdout: out.String(),
+		stderr: errOut.String(),
+		err:    err,
+	}
+}
+
 func TestCheckJSONContractStable(t *testing.T) {
+	t.Parallel()
+
 	configPath := writeTestConfig(t, `
 interval = "1s"
 timeout = "1s"
@@ -25,82 +54,82 @@ group = "service"
 command = "false"
 `)
 
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	root := NewRootCommand()
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs([]string{"check", "--config", configPath, "--json"})
-
-	err := root.Execute()
-	if err == nil {
-		t.Fatal("expected non-nil error when a check fails")
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "failed check still returns stable json envelope",
+			args: []string{"check", "--config", configPath, "--json"},
+		},
 	}
 
-	if strings.TrimSpace(errOut.String()) != "" {
-		t.Fatalf("expected no stderr output in json mode, got %q", errOut.String())
-	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	output := strings.TrimSpace(out.String())
-	if output == "" {
-		t.Fatal("expected json output")
-	}
-	if strings.Contains(output, "Group:") {
-		t.Fatalf("expected no human output in json mode, got %q", output)
-	}
+			result := executeCheckCommand(t, tc.args...)
+			require.Error(t, result.err)
+			require.Empty(t, strings.TrimSpace(result.stderr))
 
-	var envelope map[string]json.RawMessage
-	if unmarshalErr := json.Unmarshal([]byte(output), &envelope); unmarshalErr != nil {
-		t.Fatalf("expected valid json output, got error: %v", unmarshalErr)
-	}
+			output := strings.TrimSpace(result.stdout)
+			require.NotEmpty(t, output)
+			assert.NotContains(t, output, "Group:")
 
-	expectedEnvelopeKeys := map[string]struct{}{
-		"ok":        {},
-		"timestamp": {},
-		"summary":   {},
-		"checks":    {},
-		"error":     {},
-	}
+			var envelope map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal([]byte(output), &envelope))
 
-	if len(envelope) != len(expectedEnvelopeKeys) {
-		t.Fatalf("expected exactly %d envelope keys, got %d", len(expectedEnvelopeKeys), len(envelope))
-	}
-	for key := range expectedEnvelopeKeys {
-		if _, ok := envelope[key]; !ok {
-			t.Fatalf("expected key %q in envelope", key)
-		}
-	}
-
-	var checks []map[string]json.RawMessage
-	if unmarshalErr := json.Unmarshal(envelope["checks"], &checks); unmarshalErr != nil {
-		t.Fatalf("expected checks array, got error: %v", unmarshalErr)
-	}
-	if len(checks) != 2 {
-		t.Fatalf("expected 2 checks, got %d", len(checks))
-	}
-
-	expectedCheckKeys := map[string]struct{}{
-		"name":      {},
-		"group":     {},
-		"ok":        {},
-		"reason":    {},
-		"exit_code": {},
-		"timed_out": {},
-		"timestamp": {},
-	}
-	for i, check := range checks {
-		if len(check) != len(expectedCheckKeys) {
-			t.Fatalf("expected check[%d] to have %d keys, got %d", i, len(expectedCheckKeys), len(check))
-		}
-		for key := range expectedCheckKeys {
-			if _, ok := check[key]; !ok {
-				t.Fatalf("expected key %q in check[%d]", key, i)
+			expectedEnvelopeKeys := map[string]struct{}{
+				"ok":        {},
+				"timestamp": {},
+				"summary":   {},
+				"checks":    {},
+				"error":     {},
 			}
-		}
+			require.Len(t, envelope, len(expectedEnvelopeKeys))
+			for key := range expectedEnvelopeKeys {
+				_, ok := envelope[key]
+				require.Truef(t, ok, "expected key %q in envelope", key)
+			}
+
+			var summary map[string]int
+			require.NoError(t, json.Unmarshal(envelope["summary"], &summary))
+			require.Equal(t, map[string]int{
+				"total":    2,
+				"passed":   1,
+				"failed":   1,
+				"warning":  0,
+				"critical": 0,
+			}, summary)
+
+			var checks []map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(envelope["checks"], &checks))
+			require.Len(t, checks, 2)
+
+			expectedCheckKeys := map[string]struct{}{
+				"name":      {},
+				"group":     {},
+				"ok":        {},
+				"reason":    {},
+				"exit_code": {},
+				"timed_out": {},
+				"timestamp": {},
+			}
+			for i, check := range checks {
+				require.Lenf(t, check, len(expectedCheckKeys), "unexpected key count in check[%d]", i)
+				for key := range expectedCheckKeys {
+					_, ok := check[key]
+					require.Truef(t, ok, "expected key %q in check[%d]", key, i)
+				}
+			}
+		})
 	}
 }
 
 func TestCheckHumanOutputGrouped(t *testing.T) {
+	t.Parallel()
+
 	configPath := writeTestConfig(t, `
 interval = "1s"
 timeout = "1s"
@@ -116,32 +145,31 @@ group = "service"
 command = "true"
 `)
 
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	root := NewRootCommand()
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetArgs([]string{"check", "--config", configPath})
-
-	if err := root.Execute(); err != nil {
-		t.Fatalf("expected nil error, got %v", err)
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "grouped human output includes summary counters",
+			args: []string{"check", "--config", configPath},
+		},
 	}
 
-	output := out.String()
-	if !strings.Contains(output, "Group: host") {
-		t.Fatalf("expected host group header, got %q", output)
-	}
-	if !strings.Contains(output, "Group: service") {
-		t.Fatalf("expected service group header, got %q", output)
-	}
-	if !strings.Contains(output, "Summary: 2/2 checks passed") {
-		t.Fatalf("expected summary line, got %q", output)
-	}
-	if !strings.Contains(output, "- cpu: PASS (ok)") {
-		t.Fatalf("expected check line with pass status, got %q", output)
-	}
-	if strings.TrimSpace(errOut.String()) != "" {
-		t.Fatalf("expected empty stderr, got %q", errOut.String())
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := executeCheckCommand(t, tc.args...)
+			require.NoError(t, result.err)
+			require.Empty(t, strings.TrimSpace(result.stderr))
+
+			output := result.stdout
+			assert.Contains(t, output, "Group: host")
+			assert.Contains(t, output, "Group: service")
+			assert.Contains(t, output, "- cpu: PASS (ok)")
+			assert.Contains(t, output, "Summary: total=2 passed=2 failed=0 warning=0 critical=0")
+		})
 	}
 }
 
@@ -150,8 +178,7 @@ func writeTestConfig(t *testing.T, content string) string {
 
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "healthd.toml")
-	if err := os.WriteFile(path, []byte(strings.TrimSpace(content)+"\n"), 0o600); err != nil {
-		t.Fatalf("failed to write temp config: %v", err)
-	}
+	err := os.WriteFile(path, []byte(strings.TrimSpace(content)+"\n"), 0o600)
+	require.NoError(t, err)
 	return path
 }

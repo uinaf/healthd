@@ -16,9 +16,17 @@ import (
 type checkReport struct {
 	OK        bool              `json:"ok"`
 	Timestamp string            `json:"timestamp"`
-	Summary   string            `json:"summary"`
+	Summary   reportSummary     `json:"summary"`
 	Checks    []checkReportItem `json:"checks"`
 	Error     *string           `json:"error"`
+}
+
+type reportSummary struct {
+	Total    int `json:"total"`
+	Passed   int `json:"passed"`
+	Failed   int `json:"failed"`
+	Warning  int `json:"warning"`
+	Critical int `json:"critical"`
 }
 
 type checkReportItem struct {
@@ -125,13 +133,19 @@ func writeHumanReport(cmd *cobra.Command, results []runner.CheckResult) {
 		}
 	}
 
-	passedCount := 0
+	summary := buildSummary(results)
+	cmd.Printf("\nSummary: total=%d passed=%d failed=%d warning=%d critical=%d\n", summary.Total, summary.Passed, summary.Failed, summary.Warning, summary.Critical)
+}
+
+func buildSummary(results []runner.CheckResult) reportSummary {
+	summary := reportSummary{Total: len(results)}
 	for _, result := range results {
 		if result.Passed {
-			passedCount++
+			summary.Passed++
 		}
 	}
-	cmd.Printf("\nSummary: %d/%d checks passed\n", passedCount, len(results))
+	summary.Failed = summary.Total - summary.Passed
+	return summary
 }
 
 func writeJSONError(cmd *cobra.Command, jsonOutput bool, err error) error {
@@ -143,7 +157,7 @@ func writeJSONError(cmd *cobra.Command, jsonOutput bool, err error) error {
 	report := checkReport{
 		OK:        false,
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
-		Summary:   "0/0 checks passed",
+		Summary:   reportSummary{},
 		Checks:    []checkReportItem{},
 		Error:     &message,
 	}
@@ -155,13 +169,8 @@ func writeJSONError(cmd *cobra.Command, jsonOutput bool, err error) error {
 }
 
 func writeJSONReport(cmd *cobra.Command, results []runner.CheckResult) error {
-	passedCount := 0
 	items := make([]checkReportItem, 0, len(results))
 	for _, result := range results {
-		if result.Passed {
-			passedCount++
-		}
-
 		items = append(items, checkReportItem{
 			Name:      result.Name,
 			Group:     result.Group,
@@ -173,10 +182,11 @@ func writeJSONReport(cmd *cobra.Command, results []runner.CheckResult) error {
 		})
 	}
 
+	summary := buildSummary(results)
 	report := checkReport{
 		OK:        runner.AllPassed(results),
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
-		Summary:   fmt.Sprintf("%d/%d checks passed", passedCount, len(results)),
+		Summary:   summary,
 		Checks:    items,
 		Error:     nil,
 	}
