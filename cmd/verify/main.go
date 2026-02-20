@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	defaultCoverageThreshold = 50.0
+	defaultCoverageThreshold = 80.0
 	golangCILintVersion      = "v1.64.8"
 )
 
