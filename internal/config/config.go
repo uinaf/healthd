@@ -21,6 +21,7 @@ type Config struct {
 	Interval string        `toml:"interval"`
 	Timeout  string        `toml:"timeout"`
 	Checks   []CheckConfig `toml:"check"`
+	Notify   NotifyConfig  `toml:"notify"`
 }
 
 type CheckConfig struct {
@@ -42,6 +43,20 @@ type ExpectConfig struct {
 	Min         *float64 `toml:"min"`
 	Max         *float64 `toml:"max"`
 	Regex       *string  `toml:"regex"`
+}
+
+type NotifyConfig struct {
+	Cooldown string                `toml:"cooldown"`
+	Backends []NotifyBackendConfig `toml:"backend"`
+}
+
+type NotifyBackendConfig struct {
+	Name    string `toml:"name"`
+	Type    string `toml:"type"`
+	URL     string `toml:"url"`
+	Topic   string `toml:"topic"`
+	Command string `toml:"command"`
+	Timeout string `toml:"timeout"`
 }
 
 func DefaultConfig() Config {
@@ -124,6 +139,10 @@ func (c Config) Validate() error {
 		}
 	}
 
+	if err := validateNotifyConfig(c.Notify); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -160,6 +179,65 @@ func validateExpectField(name string, expect ExpectConfig) error {
 			return fmt.Errorf("%s regex is invalid: %w", name, err)
 		}
 	}
+	return nil
+}
+
+func validateNotifyConfig(notify NotifyConfig) error {
+	if strings.TrimSpace(notify.Cooldown) != "" {
+		if err := validateDurationField("notify.cooldown", notify.Cooldown); err != nil {
+			return err
+		}
+	}
+
+	names := map[string]struct{}{}
+	for i, backend := range notify.Backends {
+		prefix := fmt.Sprintf("notify.backend[%d]", i)
+		if err := validateNotifyBackend(prefix, backend); err != nil {
+			return err
+		}
+
+		name := strings.TrimSpace(backend.Name)
+		if name == "" {
+			name = strings.TrimSpace(backend.Type)
+		}
+		if _, exists := names[name]; exists {
+			return fmt.Errorf("%s name %q must be unique", prefix, name)
+		}
+		names[name] = struct{}{}
+	}
+
+	return nil
+}
+
+func validateNotifyBackend(prefix string, backend NotifyBackendConfig) error {
+	backendType := strings.TrimSpace(backend.Type)
+	if backendType == "" {
+		return fmt.Errorf("%s.type is required", prefix)
+	}
+
+	if strings.TrimSpace(backend.Timeout) != "" {
+		if err := validateDurationField(prefix+".timeout", backend.Timeout); err != nil {
+			return err
+		}
+	}
+
+	switch backendType {
+	case "ntfy":
+		if strings.TrimSpace(backend.Topic) == "" {
+			return fmt.Errorf("%s.topic is required for ntfy backend", prefix)
+		}
+	case "webhook":
+		if strings.TrimSpace(backend.URL) == "" {
+			return fmt.Errorf("%s.url is required for webhook backend", prefix)
+		}
+	case "command":
+		if strings.TrimSpace(backend.Command) == "" {
+			return fmt.Errorf("%s.command is required for command backend", prefix)
+		}
+	default:
+		return fmt.Errorf("%s.type must be one of ntfy, webhook, command", prefix)
+	}
+
 	return nil
 }
 

@@ -193,6 +193,78 @@ command = "df -h"
 	}
 }
 
+func TestLoadFromPathValidNotifyConfig(t *testing.T) {
+	path := writeTempConfig(t, `
+[[check]]
+name = "disk"
+command = "df -h"
+
+[notify]
+cooldown = "30s"
+
+[[notify.backend]]
+name = "ops-webhook"
+type = "webhook"
+url = "https://example.com/healthd"
+`)
+
+	cfg, err := LoadFromPath(path)
+	if err != nil {
+		t.Fatalf("expected valid notify config, got error: %v", err)
+	}
+	if cfg.Notify.Cooldown != "30s" {
+		t.Fatalf("expected notify cooldown to be loaded, got %q", cfg.Notify.Cooldown)
+	}
+	if len(cfg.Notify.Backends) != 1 {
+		t.Fatalf("expected 1 notify backend, got %d", len(cfg.Notify.Backends))
+	}
+}
+
+func TestLoadFromPathRejectsInvalidNotifyBackend(t *testing.T) {
+	path := writeTempConfig(t, `
+[[check]]
+name = "disk"
+command = "df -h"
+
+[[notify.backend]]
+type = "webhook"
+`)
+
+	_, err := LoadFromPath(path)
+	if err == nil {
+		t.Fatal("expected invalid notify backend error")
+	}
+	if !strings.Contains(err.Error(), "notify.backend[0].url is required") {
+		t.Fatalf("expected webhook url validation error, got %v", err)
+	}
+}
+
+func TestLoadFromPathRejectsDuplicateNotifyBackendNames(t *testing.T) {
+	path := writeTempConfig(t, `
+[[check]]
+name = "disk"
+command = "df -h"
+
+[[notify.backend]]
+name = "primary"
+type = "command"
+command = "echo one"
+
+[[notify.backend]]
+name = "primary"
+type = "command"
+command = "echo two"
+`)
+
+	_, err := LoadFromPath(path)
+	if err == nil {
+		t.Fatal("expected duplicate notify backend name error")
+	}
+	if !strings.Contains(err.Error(), `name "primary" must be unique`) {
+		t.Fatalf("expected duplicate notify name error, got %v", err)
+	}
+}
+
 func writeTempConfig(t *testing.T, content string) string {
 	t.Helper()
 
