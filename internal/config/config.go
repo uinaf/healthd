@@ -223,7 +223,8 @@ func validateNotifyBackend(prefix string, backend NotifyBackendConfig) error {
 
 	switch backendType {
 	case "ntfy":
-		if strings.TrimSpace(backend.Topic) == "" {
+		topic := strings.TrimSpace(backend.Topic)
+		if topic == "" || strings.Trim(topic, "/") == "" {
 			return fmt.Errorf("%s.topic is required for ntfy backend", prefix)
 		}
 	case "webhook":
