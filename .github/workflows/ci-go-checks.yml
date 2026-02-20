@@ -87,7 +87,7 @@ jobs:
         run: go test ./...
 
   coverage:
-    name: coverage >= 70%
+    name: coverage >= 90%
     if: ${{ hashFiles('**/*.go') != '' }}
     runs-on: ubuntu-latest
     steps:
@@ -112,4 +112,4 @@ jobs:
           total=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub(/%/, "", $3); print $3}')
           echo "Total coverage: ${total}%"
 
-          awk -v total="${total}" 'BEGIN { if (total + 0 < 70) exit 1 }'
+          awk -v total="${total}" 'BEGIN { if (total + 0 < 90) exit 1 }'
