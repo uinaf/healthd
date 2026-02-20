@@ -6,15 +6,23 @@ Pluggable host health-check daemon written in Go.
 
 Use prebuilt release binaries by default.
 
-### macOS/Linux (copy-paste)
+### macOS (copy-paste)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash
+# optional pinned version:
+# curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash -s -- v0.1.0
+```
+
+Manual install (if you prefer):
 
 ```bash
 VERSION="vX.Y.Z"
-OS="$(uname | tr '[:upper:]' '[:lower:]')"
+OS="darwin"
 ARCH="$(uname -m)"
 case "$ARCH" in
   x86_64) ARCH="amd64" ;;
-  arm64|aarch64) ARCH="arm64" ;;
+  arm64) ARCH="arm64" ;;
   *) echo "unsupported arch: $ARCH"; exit 1 ;;
 esac
 

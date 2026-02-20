@@ -5,15 +5,23 @@ description: Operate healthd safely on a host with binary-first install, ntfy-fi
 
 # healthd Operator
 
-## Default install flow (binary-first)
+## Default install flow (binary-first, macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash
+# optional pinned version:
+# curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash -s -- v0.1.0
+```
+
+Manual macOS install (if needed):
 
 ```bash
 VERSION="vX.Y.Z"
-OS="$(uname | tr '[:upper:]' '[:lower:]')"
+OS="darwin"
 ARCH="$(uname -m)"
 case "$ARCH" in
   x86_64) ARCH="amd64" ;;
-  arm64|aarch64) ARCH="arm64" ;;
+  arm64) ARCH="arm64" ;;
   *) echo "unsupported arch: $ARCH"; exit 1 ;;
 esac
 
