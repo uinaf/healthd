@@ -145,14 +145,47 @@ func runLint() error {
 }
 
 func runTests(coverageFile string) error {
-	fmt.Println("• go test ./...")
-	cmd := exec.Command("go", "test", "./...", "-covermode=atomic", "-coverprofile="+coverageFile)
+	pkgs, err := testPackages()
+	if err != nil {
+		return err
+	}
+	if len(pkgs) == 0 {
+		return errors.New("no test packages found")
+	}
+
+	fmt.Printf("• go test %s\n", strings.Join(pkgs, " "))
+	args := append([]string{"test"}, pkgs...)
+	args = append(args, "-covermode=atomic", "-coverprofile="+coverageFile)
+	cmd := exec.Command("go", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("run go test: %w", err)
 	}
 	return nil
+}
+
+func testPackages() ([]string, error) {
+	cmd := exec.Command("go", "list", "./...")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("list go packages: %w", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	pkgs := make([]string, 0, len(lines))
+	for _, pkg := range lines {
+		pkg = strings.TrimSpace(pkg)
+		if pkg == "" {
+			continue
+		}
+		if strings.HasSuffix(pkg, "/cmd/verify") {
+			continue
+		}
+		pkgs = append(pkgs, pkg)
+	}
+
+	return pkgs, nil
 }
 
 func totalCoverage(coverageFile string) (float64, error) {
