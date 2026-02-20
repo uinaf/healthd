@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/uinaf/healthd/internal/config"
@@ -32,12 +31,7 @@ func newInitCommand() *cobra.Command {
 		Short: "Write starter configuration",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			pathArg := configPath
-			if strings.TrimSpace(pathArg) == "" {
-				pathArg = config.DefaultConfigPath
-			}
-
-			resolvedPath, err := config.ResolvePath(pathArg)
+			resolvedPath, err := config.ResolvePath(configPath)
 			if err != nil {
 				return err
 			}
