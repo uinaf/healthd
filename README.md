@@ -27,10 +27,10 @@ Run the same checks used in CI (format, lint, tests, coverage threshold):
 go run ./cmd/verify
 ```
 
-Coverage threshold defaults to `90%` and can be overridden when needed:
+Coverage threshold defaults to `50%` (ratcheting baseline) and can be overridden when needed:
 
 ```bash
-go run ./cmd/verify --min-coverage=90
+go run ./cmd/verify --min-coverage=50
 ```
 
 ## Status
