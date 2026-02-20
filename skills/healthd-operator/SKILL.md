@@ -1,12 +1,11 @@
-# healthd
+---
+name: healthd-operator
+description: Operate healthd safely on a host with binary-first install, ntfy-first notifications, daemon lifecycle, and rollback steps.
+---
 
-Pluggable host health-check daemon written in Go.
+# healthd Operator
 
-## Install (binary-first)
-
-Use prebuilt release binaries by default.
-
-### macOS/Linux (copy-paste)
+## Default install flow (binary-first)
 
 ```bash
 VERSION="vX.Y.Z"
@@ -26,37 +25,17 @@ curl -fL "${BASE_URL}/checksums.txt" -o checksums.txt
 grep "  ${ARTIFACT}$" checksums.txt | shasum -a 256 -c -
 tar -xzf "${ARTIFACT}"
 install -m 0755 healthd /usr/local/bin/healthd
-healthd --version
 ```
 
-### Source build fallback
+Source fallback:
 
 ```bash
 go install github.com/uinaf/healthd@latest
-healthd --version
 ```
 
-## Quickstart
+## Notifications (default easiest path: ntfy)
 
-1. Copy baseline config:
-
-```bash
-mkdir -p ~/.config/healthd
-cp examples/current-host.toml ~/.config/healthd/config.toml
-```
-
-2. Validate + run one-shot checks:
-
-```bash
-healthd validate --config ~/.config/healthd/config.toml
-healthd check --config ~/.config/healthd/config.toml
-```
-
-## Notifications (ntfy default + local-log fallback)
-
-Use ntfy for easiest phone push notifications, and keep a local command notifier as backup.
-
-### Config snippet
+Use ntfy for phone push alerts, with local-log as backup.
 
 ```toml
 [notify]
@@ -74,27 +53,16 @@ command = "logger -t healthd-alert"
 timeout = "5s"
 ```
 
-### Choose a strong random topic
+Generate a strong topic:
 
 ```bash
 openssl rand -hex 16
-# example: 6f1a6b3f6a4a89e4d117e8a355ec21d0
 ```
 
-Then set `topic = "<that-random-value>"` in config.
-
-### Verify notifier wiring
+Test notifier delivery:
 
 ```bash
 healthd notify test --config ~/.config/healthd/config.toml --backend ntfy-phone
-# backup path:
+# backup notifier:
 healthd notify test --config ~/.config/healthd/config.toml --backend local-log
-```
-
-## Local verification
-
-Run the same checks used in CI:
-
-```bash
-go run ./cmd/verify
 ```
