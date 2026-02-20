@@ -1,0 +1,116 @@
+name: CI Go Checks
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gofmt:
+    name: gofmt (fail on diff)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+          cache-dependency-path: |
+            **/go.sum
+
+      - name: Verify formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=$(git ls-files '*.go')
+          if [ -z "${files}" ]; then
+            echo "No Go files found"
+            exit 0
+          fi
+
+          unformatted=$(gofmt -l ${files})
+          if [ -n "${unformatted}" ]; then
+            echo "The following files are not gofmt-formatted:"
+            echo "${unformatted}"
+            exit 1
+          fi
+
+  golangci_lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+          cache-dependency-path: |
+            **/go.sum
+
+      - name: Run golangci-lint
+        if: ${{ hashFiles('**/*.go') != '' }}
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  go_test:
+    name: go test ./...
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+          cache-dependency-path: |
+            **/go.sum
+
+      - name: Run tests
+        if: ${{ hashFiles('**/*.go') != '' }}
+        run: go test ./...
+
+  coverage:
+    name: coverage >= 90%
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+          cache-dependency-path: |
+            **/go.sum
+
+      - name: Run tests with coverage
+        if: ${{ hashFiles('**/*.go') != '' }}
+        run: go test ./... -covermode=atomic -coverprofile=coverage.out
+
+      - name: Enforce coverage threshold
+        if: ${{ hashFiles('**/*.go') != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub(/%/, "", $3); print $3}')
+          echo "Total coverage: ${total}%"
+
+          awk -v total="${total}" 'BEGIN { if (total + 0 < 90) exit 1 }'
