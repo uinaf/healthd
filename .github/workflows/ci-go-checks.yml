@@ -48,7 +48,6 @@ jobs:
 
   golangci_lint:
     name: golangci-lint
-    if: ${{ hashFiles('**/*.go') != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -63,13 +62,13 @@ jobs:
             **/go.sum
 
       - name: Run golangci-lint
+        if: ${{ hashFiles('**/*.go') != '' }}
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
 
   go_test:
     name: go test ./...
-    if: ${{ hashFiles('**/*.go') != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -84,11 +83,11 @@ jobs:
             **/go.sum
 
       - name: Run tests
+        if: ${{ hashFiles('**/*.go') != '' }}
         run: go test ./...
 
   coverage:
     name: coverage >= 90%
-    if: ${{ hashFiles('**/*.go') != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -103,9 +102,11 @@ jobs:
             **/go.sum
 
       - name: Run tests with coverage
+        if: ${{ hashFiles('**/*.go') != '' }}
         run: go test ./... -covermode=atomic -coverprofile=coverage.out
 
       - name: Enforce coverage threshold
+        if: ${{ hashFiles('**/*.go') != '' }}
         shell: bash
         run: |
           set -euo pipefail
