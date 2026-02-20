@@ -8,6 +8,7 @@ func NewRootCommand() *cobra.Command {
 		Short: "Host health-check daemon",
 	}
 
+	root.AddCommand(newCheckCommand())
 	root.AddCommand(newValidateCommand())
 	return root
 }
