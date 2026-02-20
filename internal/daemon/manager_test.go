@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestRenderPlistIncludesRequiredFields(t *testing.T) {
@@ -14,7 +13,6 @@ func TestRenderPlistIncludesRequiredFields(t *testing.T) {
 		Label:      LaunchAgentLabel,
 		Executable: "/usr/local/bin/healthd",
 		ConfigPath: "/tmp/healthd.toml",
-		Interval:   30 * time.Second,
 		StdoutPath: "/tmp/stdout.log",
 		StderrPath: "/tmp/stderr.log",
 	})
@@ -27,12 +25,14 @@ func TestRenderPlistIncludesRequiredFields(t *testing.T) {
 		"<string>daemon</string>",
 		"<string>run</string>",
 		"<string>/tmp/healthd.toml</string>",
-		"<integer>30</integer>",
 		"<true/>",
 	} {
 		if !strings.Contains(plist, expected) {
 			t.Fatalf("expected plist to contain %q", expected)
 		}
+	}
+	if strings.Contains(plist, "<key>StartInterval</key>") {
+		t.Fatalf("expected plist to omit StartInterval when KeepAlive is enabled")
 	}
 }
 
@@ -45,7 +45,7 @@ func TestManagerInstallWritesPlistAndRestartsService(t *testing.T) {
 	manager.homeDir = func() (string, error) { return tmp, nil }
 	manager.execPath = func() (string, error) { return "/usr/local/bin/healthd", nil }
 
-	paths, err := manager.Install("/tmp/healthd.toml", 45*time.Second)
+	paths, err := manager.Install("/tmp/healthd.toml")
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
@@ -60,8 +60,8 @@ func TestManagerInstallWritesPlistAndRestartsService(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed reading plist: %v", err)
 	}
-	if !strings.Contains(string(content), "<integer>45</integer>") {
-		t.Fatalf("expected interval in plist, got %q", string(content))
+	if strings.Contains(string(content), "<key>StartInterval</key>") {
+		t.Fatalf("expected StartInterval to be omitted, got %q", string(content))
 	}
 }
 

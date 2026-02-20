@@ -1,10 +1,11 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
-	"time"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/uinaf/healthd/internal/config"
@@ -14,7 +15,7 @@ import (
 var daemonRunLoop = daemon.RunLoop
 
 type daemonController interface {
-	Install(configPath string, interval time.Duration) (daemon.Paths, error)
+	Install(configPath string) (daemon.Paths, error)
 	Uninstall() (daemon.Paths, error)
 	Status() (daemon.Status, daemon.Paths, error)
 	ReadLogs(lines int) (string, string, error)
@@ -47,17 +48,12 @@ func newDaemonInstallCommand() *cobra.Command {
 		Short: "Install and start macOS LaunchAgent",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolvedPath, cfg, err := loadConfigForDaemon(configPath)
+			resolvedPath, _, err := loadConfigForDaemon(configPath)
 			if err != nil {
 				return err
 			}
 
-			interval, err := parseInterval(cfg.Interval)
-			if err != nil {
-				return err
-			}
-
-			paths, err := daemonControllerFactory().Install(resolvedPath, interval)
+			paths, err := daemonControllerFactory().Install(resolvedPath)
 			if err != nil {
 				return err
 			}
@@ -172,7 +168,9 @@ func newDaemonRunCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return daemonRunLoop(context.Background(), cfg, cmd.ErrOrStderr())
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			return daemonRunLoop(ctx, cfg, cmd.ErrOrStderr())
 		},
 	}
 
@@ -190,15 +188,4 @@ func loadConfigForDaemon(path string) (string, config.Config, error) {
 		return "", config.Config{}, err
 	}
 	return resolvedPath, cfg, nil
-}
-
-func parseInterval(raw string) (time.Duration, error) {
-	interval, err := time.ParseDuration(raw)
-	if err != nil {
-		return 0, fmt.Errorf("parse schedule interval: %w", err)
-	}
-	if interval <= 0 {
-		return 0, fmt.Errorf("schedule interval must be greater than zero")
-	}
-	return interval, nil
 }

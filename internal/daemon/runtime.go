@@ -16,6 +16,9 @@ func RunLoop(ctx context.Context, cfg config.Config, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("parse schedule interval: %w", err)
 	}
+	if interval <= 0 {
+		return fmt.Errorf("schedule interval must be greater than zero")
+	}
 
 	cooldown, err := notify.ParseCooldown(cfg.Notify.Cooldown)
 	if err != nil {

@@ -7,14 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
-	"time"
 )
 
 type PlistSpec struct {
 	Label      string
 	Executable string
 	ConfigPath string
-	Interval   time.Duration
 	StdoutPath string
 	StderrPath string
 }
@@ -37,8 +35,6 @@ var launchAgentTemplate = template.Must(template.New("launchagent").Parse(`<?xml
   <true/>
   <key>KeepAlive</key>
   <true/>
-  <key>StartInterval</key>
-  <integer>{{ .IntervalSeconds }}</integer>
   <key>StandardOutPath</key>
   <string>{{ .StdoutPath }}</string>
   <key>StandardErrorPath</key>
@@ -57,27 +53,22 @@ func RenderPlist(spec PlistSpec) (string, error) {
 	if strings.TrimSpace(spec.ConfigPath) == "" {
 		return "", errors.New("plist config path is required")
 	}
-	if spec.Interval <= 0 {
-		return "", errors.New("plist interval must be greater than zero")
-	}
 	if strings.TrimSpace(spec.StdoutPath) == "" || strings.TrimSpace(spec.StderrPath) == "" {
 		return "", errors.New("plist log paths are required")
 	}
 
 	data := struct {
-		Label           string
-		Executable      string
-		ConfigPath      string
-		IntervalSeconds int64
-		StdoutPath      string
-		StderrPath      string
+		Label      string
+		Executable string
+		ConfigPath string
+		StdoutPath string
+		StderrPath string
 	}{
-		Label:           spec.Label,
-		Executable:      filepath.Clean(spec.Executable),
-		ConfigPath:      filepath.Clean(spec.ConfigPath),
-		IntervalSeconds: int64(spec.Interval / time.Second),
-		StdoutPath:      filepath.Clean(spec.StdoutPath),
-		StderrPath:      filepath.Clean(spec.StderrPath),
+		Label:      spec.Label,
+		Executable: filepath.Clean(spec.Executable),
+		ConfigPath: filepath.Clean(spec.ConfigPath),
+		StdoutPath: filepath.Clean(spec.StdoutPath),
+		StderrPath: filepath.Clean(spec.StderrPath),
 	}
 
 	var buf bytes.Buffer

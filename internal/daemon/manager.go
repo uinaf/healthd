@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const LaunchAgentLabel = "com.uinaf.healthd"
@@ -65,7 +64,7 @@ func DefaultPaths(home string) Paths {
 	}
 }
 
-func (m *Manager) Install(configPath string, interval time.Duration) (Paths, error) {
+func (m *Manager) Install(configPath string) (Paths, error) {
 	home, err := m.homeDir()
 	if err != nil {
 		return Paths{}, fmt.Errorf("determine user home: %w", err)
@@ -89,7 +88,6 @@ func (m *Manager) Install(configPath string, interval time.Duration) (Paths, err
 		Label:      LaunchAgentLabel,
 		Executable: executable,
 		ConfigPath: filepath.Clean(configPath),
-		Interval:   interval,
 		StdoutPath: paths.StdoutPath,
 		StderrPath: paths.StderrPath,
 	})

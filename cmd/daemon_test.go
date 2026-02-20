@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/uinaf/healthd/internal/daemon"
 )
@@ -44,9 +43,6 @@ command = "true"
 	}
 	if fake.installCalls != 1 {
 		t.Fatalf("expected install to be called once, got %d", fake.installCalls)
-	}
-	if fake.installInterval != 15*time.Second {
-		t.Fatalf("expected interval 15s, got %v", fake.installInterval)
 	}
 	if !strings.Contains(out.String(), "daemon installed and started") {
 		t.Fatalf("expected install output, got %q", out.String())
@@ -135,11 +131,10 @@ func TestDaemonUninstallCommand(t *testing.T) {
 }
 
 type fakeDaemonController struct {
-	installCalls    int
-	installConfig   string
-	installInterval time.Duration
-	installPaths    daemon.Paths
-	installErr      error
+	installCalls  int
+	installConfig string
+	installPaths  daemon.Paths
+	installErr    error
 
 	uninstallCalls int
 	uninstallPaths daemon.Paths
@@ -157,10 +152,9 @@ type fakeDaemonController struct {
 	logsErr   error
 }
 
-func (f *fakeDaemonController) Install(configPath string, interval time.Duration) (daemon.Paths, error) {
+func (f *fakeDaemonController) Install(configPath string) (daemon.Paths, error) {
 	f.installCalls++
 	f.installConfig = configPath
-	f.installInterval = interval
 	if f.installErr != nil {
 		return daemon.Paths{}, f.installErr
 	}
