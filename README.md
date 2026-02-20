@@ -1,52 +1,46 @@
 # healthd
 
-Pluggable host health-check daemon written in Go.
+`healthd` is a small CLI + daemon for host health checks.
+It validates config, runs checks on demand, and can run continuously as a macOS LaunchAgent.
+It can send alerts to `ntfy` and a local fallback command.
 
 ## Install
 
-Pick any install method:
+Choose one install method:
 
 ### Homebrew
 
 ```bash
 brew tap uinaf/tap
 brew install healthd
-```
-
-### Direct install (script)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash
-# optional pinned version:
-# curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash -s -- v0.1.0
 healthd --version
 ```
 
-### Source build
+### Direct install script
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash
+healthd --version
+```
+
+### Build from source
 
 ```bash
 go install github.com/uinaf/healthd@latest
 healthd --version
 ```
 
-## First run
+## Quick start
 
 ```bash
 healthd init
-# optional custom path:
-# healthd init --config /path/to/config.toml
-# overwrite existing config:
-# healthd init --force
-
 healthd validate --config ~/.config/healthd/config.toml
 healthd check --config ~/.config/healthd/config.toml
 ```
 
 ## Notifications
 
-Use `ntfy` for the easiest phone push path.
-
-### Config snippet
+Use `ntfy` for push alerts, plus a local command backend as fallback.
 
 ```toml
 [notify]
@@ -64,29 +58,24 @@ command = "logger -t healthd-alert"
 timeout = "5s"
 ```
 
-### Choose a strong random topic
+Generate a topic:
 
 ```bash
 openssl rand -hex 16
-# example: 6f1a6b3f6a4a89e4d117e8a355ec21d0
 ```
 
-Then set `topic = "<that-random-value>"` in config.
-
-### Validate, check, then test notify
+Test both backends:
 
 ```bash
-healthd validate --config ~/.config/healthd/config.toml
-healthd check --config ~/.config/healthd/config.toml
 healthd notify test --config ~/.config/healthd/config.toml --backend ntfy-phone
-# backup path:
 healthd notify test --config ~/.config/healthd/config.toml --backend local-log
 ```
 
-## Local verification
-
-Run the same checks used in CI:
+## Daemon basics (macOS)
 
 ```bash
-go run ./cmd/verify
+healthd daemon install --config ~/.config/healthd/config.toml
+healthd daemon status
+healthd daemon logs --lines 100
+healthd daemon uninstall
 ```
