@@ -4,19 +4,16 @@ Pluggable host health-check daemon written in Go.
 
 ## Install
 
-Use this order:
-1. Homebrew
-2. Direct binary download
-3. Source build
+Pick any install method:
 
-### 1) Homebrew (recommended)
+### Homebrew
 
 ```bash
 brew tap uinaf/tap
 brew install healthd
 ```
 
-### 2) Direct install script
+### Direct install (script)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash
@@ -25,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.
 healthd --version
 ```
 
-### 3) Source build
+### Source build
 
 ```bash
 go install github.com/uinaf/healthd@latest
@@ -34,19 +31,13 @@ healthd --version
 
 ## First run
 
-1. Initialize starter config:
-
 ```bash
 healthd init
 # optional custom path:
 # healthd init --config /path/to/config.toml
 # overwrite existing config:
 # healthd init --force
-```
 
-2. Validate + run checks:
-
-```bash
 healthd validate --config ~/.config/healthd/config.toml
 healthd check --config ~/.config/healthd/config.toml
 ```
