@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,10 +24,24 @@ type Config struct {
 }
 
 type CheckConfig struct {
-	Name     string `toml:"name"`
-	Command  string `toml:"command"`
-	Interval string `toml:"interval"`
-	Timeout  string `toml:"timeout"`
+	Name     string            `toml:"name"`
+	Command  string            `toml:"command"`
+	Group    string            `toml:"group"`
+	Interval string            `toml:"interval"`
+	Timeout  string            `toml:"timeout"`
+	Env      map[string]string `toml:"env"`
+	Expect   ExpectConfig      `toml:"expect"`
+}
+
+type ExpectConfig struct {
+	ExitCode    *int     `toml:"exit_code"`
+	Equals      *string  `toml:"equals"`
+	Not         *string  `toml:"not"`
+	Contains    *string  `toml:"contains"`
+	NotContains *string  `toml:"not_contains"`
+	Min         *float64 `toml:"min"`
+	Max         *float64 `toml:"max"`
+	Regex       *string  `toml:"regex"`
 }
 
 func DefaultConfig() Config {
@@ -101,6 +116,12 @@ func (c Config) Validate() error {
 				return err
 			}
 		}
+		if err := validateEnvField(prefix+".env", check.Env); err != nil {
+			return err
+		}
+		if err := validateExpectField(prefix+".expect", check.Expect); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -113,6 +134,31 @@ func validateDurationField(name, value string) error {
 	}
 	if d <= 0 {
 		return fmt.Errorf("%s must be greater than zero", name)
+	}
+	return nil
+}
+
+func validateEnvField(name string, env map[string]string) error {
+	for key := range env {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			return fmt.Errorf("%s key must not be empty", name)
+		}
+		if strings.Contains(trimmed, "=") {
+			return fmt.Errorf("%s key %q must not contain '='", name, key)
+		}
+	}
+	return nil
+}
+
+func validateExpectField(name string, expect ExpectConfig) error {
+	if expect.Min != nil && expect.Max != nil && *expect.Min > *expect.Max {
+		return fmt.Errorf("%s min must be less than or equal to max", name)
+	}
+	if expect.Regex != nil {
+		if _, err := regexp.Compile(*expect.Regex); err != nil {
+			return fmt.Errorf("%s regex is invalid: %w", name, err)
+		}
 	}
 	return nil
 }

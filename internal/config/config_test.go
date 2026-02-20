@@ -135,6 +135,64 @@ command = "df -h"
 	}
 }
 
+func TestLoadFromPathRejectsInvalidExpectRegex(t *testing.T) {
+	path := writeTempConfig(t, `
+[[check]]
+name = "disk"
+command = "df -h"
+
+[check.expect]
+regex = "("
+`)
+
+	_, err := LoadFromPath(path)
+	if err == nil {
+		t.Fatal("expected invalid config error")
+	}
+	if !strings.Contains(err.Error(), "regex is invalid") {
+		t.Fatalf("expected regex validation error, got %v", err)
+	}
+}
+
+func TestLoadFromPathRejectsInvalidExpectRange(t *testing.T) {
+	path := writeTempConfig(t, `
+[[check]]
+name = "disk"
+command = "printf 42"
+
+[check.expect]
+min = 10
+max = 5
+`)
+
+	_, err := LoadFromPath(path)
+	if err == nil {
+		t.Fatal("expected invalid config error")
+	}
+	if !strings.Contains(err.Error(), "min must be less than or equal to max") {
+		t.Fatalf("expected min/max validation error, got %v", err)
+	}
+}
+
+func TestLoadFromPathRejectsInvalidEnvKey(t *testing.T) {
+	path := writeTempConfig(t, `
+[[check]]
+name = "disk"
+command = "df -h"
+
+[check.env]
+"BAD=KEY" = "1"
+`)
+
+	_, err := LoadFromPath(path)
+	if err == nil {
+		t.Fatal("expected invalid config error")
+	}
+	if !strings.Contains(err.Error(), "must not contain '='") {
+		t.Fatalf("expected env key validation error, got %v", err)
+	}
+}
+
 func writeTempConfig(t *testing.T, content string) string {
 	t.Helper()
 
