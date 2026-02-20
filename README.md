@@ -2,19 +2,21 @@
 
 Pluggable host health-check daemon written in Go.
 
-## Install (binary-first)
+## Install
 
-Use prebuilt release binaries by default.
+Use this order:
+1. Homebrew
+2. Direct binary download
+3. Source build
 
-### macOS (copy-paste)
+### 1) Homebrew (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash
-# optional pinned version:
-# curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash -s -- v0.1.0
+brew tap uinaf/tap
+brew install healthd
 ```
 
-Manual install (if you prefer):
+### 2) Direct binary download
 
 ```bash
 VERSION="vX.Y.Z"
@@ -37,32 +39,35 @@ install -m 0755 healthd /usr/local/bin/healthd
 healthd --version
 ```
 
-### Source build fallback
+### 3) Source build
 
 ```bash
 go install github.com/uinaf/healthd@latest
 healthd --version
 ```
 
-## Quickstart
+## First run
 
-1. Copy baseline config:
+1. Initialize starter config:
 
 ```bash
-mkdir -p ~/.config/healthd
-cp examples/current-host.toml ~/.config/healthd/config.toml
+healthd init
+# optional custom path:
+# healthd init --config /path/to/config.toml
+# overwrite existing config:
+# healthd init --force
 ```
 
-2. Validate + run one-shot checks:
+2. Validate + run checks:
 
 ```bash
 healthd validate --config ~/.config/healthd/config.toml
 healthd check --config ~/.config/healthd/config.toml
 ```
 
-## Notifications (ntfy default + local-log fallback)
+## Notifications
 
-Use ntfy for easiest phone push notifications, and keep a local command notifier as backup.
+Use `ntfy` for the easiest phone push path.
 
 ### Config snippet
 
@@ -91,9 +96,11 @@ openssl rand -hex 16
 
 Then set `topic = "<that-random-value>"` in config.
 
-### Verify notifier wiring
+### Validate, check, then test notify
 
 ```bash
+healthd validate --config ~/.config/healthd/config.toml
+healthd check --config ~/.config/healthd/config.toml
 healthd notify test --config ~/.config/healthd/config.toml --backend ntfy-phone
 # backup path:
 healthd notify test --config ~/.config/healthd/config.toml --backend local-log
