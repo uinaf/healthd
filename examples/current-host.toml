@@ -1,0 +1,43 @@
+interval = "60s"
+timeout = "10s"
+
+# Default host checks mirroring the current cron-based health coverage.
+[[check]]
+name = "disk-root"
+group = "host"
+command = "df -P / | awk 'NR==2 {print 100-$5}'"
+
+[check.expect]
+min = 10
+
+[[check]]
+name = "load-1m"
+group = "host"
+command = "uptime | awk -F'load averages?: ' '{print $2}' | awk -F', ' '{print $1}'"
+
+[check.expect]
+max = 8
+
+[[check]]
+name = "memory-available-mb"
+group = "host"
+command = "vm_stat | awk '/Pages free|Pages speculative/ {sum += $3} END {print int(sum*4096/1024/1024)}'"
+
+[check.expect]
+min = 512
+
+[[check]]
+name = "api-health"
+group = "service"
+command = "curl -fsS --max-time 5 http://127.0.0.1:3000/healthz >/dev/null"
+
+[check.expect]
+exit_code = 0
+
+[notify]
+cooldown = "5m"
+
+[[notify.backend]]
+name = "ops-webhook"
+type = "webhook"
+url = "https://example.internal/healthd-alerts"
