@@ -1,10 +1,9 @@
-name: CI Go Checks
+name: E2E Host macOS (Optional)
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,9 +13,9 @@ permissions:
   contents: read
 
 jobs:
-  verify:
-    name: verify (fmt + tests)
-    runs-on: ubuntu-latest
+  host-e2e:
+    name: host e2e (self-hosted macOS)
+    runs-on: [self-hosted, macOS]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,21 +40,7 @@ jobs:
           cache-dependency-path: |
             **/go.sum
 
-      - name: Check formatting
-        run: |
-          set -euo pipefail
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "Unformatted files:" >&2
-            echo "$unformatted" >&2
-            exit 1
-          fi
-
-      - name: Run full test suite
-        run: go test ./...
-
-      - name: Run integration tests (required)
-        run: go test ./integration/... -v
-
-      - name: Run CLI e2e-lite tests (required)
-        run: go test ./e2e/cli/... -v
+      - name: Run host daemon e2e scaffold
+        env:
+          HEALTHD_HOST_E2E: "1"
+        run: go test -tags=hoste2e ./e2e/host/... -v
