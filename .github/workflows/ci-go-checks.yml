@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   verify:
-    name: verify (fmt + tests)
+    name: verify (fmt + lint + test + coverage)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -41,18 +41,9 @@ jobs:
           cache-dependency-path: |
             **/go.sum
 
-      - name: Check formatting
-        run: |
-          set -euo pipefail
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "Unformatted files:" >&2
-            echo "$unformatted" >&2
-            exit 1
-          fi
-
-      - name: Run full test suite
-        run: go test ./...
+      - name: Run verifier (coverage gate)
+        if: ${{ hashFiles('**/*.go') != '' }}
+        run: go run ./cmd/verify
 
       - name: Run integration tests (required)
         run: go test ./integration/... -v
