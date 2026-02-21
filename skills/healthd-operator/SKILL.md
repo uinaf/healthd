@@ -1,6 +1,25 @@
 ---
 name: healthd-operator
 description: Operate healthd safely on a local host: detect environment, install/build binary, bootstrap config, validate and run one-shot checks, install/manage daemon, test notifications, and rollback/uninstall. Use when asked to deploy healthd, troubleshoot health checks, migrate from cron, inspect daemon/log status, or verify alert delivery.
+homepage: https://github.com/uinaf/healthd
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "🏥",
+        "requires": { "bins": ["healthd"] },
+        "install":
+          [
+            {
+              "id": "brew",
+              "kind": "brew",
+              "formula": "uinaf/tap/healthd",
+              "bins": ["healthd"],
+              "label": "Install healthd (brew)",
+            },
+          ],
+      },
+  }
 ---
 
 # healthd Operator
@@ -19,7 +38,8 @@ Use this skill for practical host operations. Prefer reversible steps and show c
    - Confirm OS/user, repo vs installed binary, config path (`--config` / `HEALTHD_CONFIG` / default).
    - Check if daemon is already installed: `healthd daemon status`.
 2. **Install/build binary**
-   - Preferred direct install: `curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash`
+   - Preferred install: `brew install uinaf/tap/healthd`
+   - Direct installer alternative: `curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash`
    - Optional pinned version: `curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash -s -- v0.1.0`
    - Source fallback for local dev: `go build -o ./bin/healthd .` or `go install .`.
 3. **First-run config bootstrap**
