@@ -1,10 +1,9 @@
-name: CI Go Checks
+name: E2E Host macOS (Optional)
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,9 +13,9 @@ permissions:
   contents: read
 
 jobs:
-  verify:
-    name: verify (fmt + lint + test + coverage)
-    runs-on: ubuntu-latest
+  host-e2e:
+    name: host e2e (GitHub-hosted macOS)
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,12 +40,7 @@ jobs:
           cache-dependency-path: |
             **/go.sum
 
-      - name: Run verifier (coverage gate)
-        if: ${{ hashFiles('**/*.go') != '' }}
-        run: go run ./cmd/verify
-
-      - name: Run integration tests (required)
-        run: go test ./integration/... -v
-
-      - name: Run CLI e2e-lite tests (required)
-        run: go test ./e2e/cli/... -v
+      - name: Run host daemon e2e scaffold
+        env:
+          HEALTHD_HOST_E2E: "1"
+        run: go test -tags=hoste2e ./e2e/host/... -v
