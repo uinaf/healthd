@@ -14,8 +14,8 @@ permissions:
 
 jobs:
   host-e2e:
-    name: host e2e (self-hosted macOS)
-    runs-on: [self-hosted, macOS]
+    name: host e2e (GitHub-hosted macOS)
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
