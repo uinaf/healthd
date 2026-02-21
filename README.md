@@ -1,6 +1,23 @@
 # healthd
 
-Pluggable host health-check daemon written in Go.
+`healthd` is a lightweight host health daemon for one machine.
+
+It exists to replace fragile cron-only checks with a single, reliable loop that:
+- runs checks on a schedule
+- returns machine-readable status (`--json`)
+- sends alerts on fail/recover transitions
+
+## Motivation
+
+Most setups end up with scattered shell scripts, ad-hoc cron jobs, and noisy alerts.
+`healthd` gives you one place to define checks, one output format, and pluggable notifications.
+
+## Good use cases
+
+- Monitor local daemons/services (trading bots, workers, sidecars)
+- Catch machine drift (disk, network, gateway, Docker/Colima)
+- Replace many small cron probes with one structured checker
+- Build automations on top of JSON output
 
 ## Install
 
@@ -20,37 +37,26 @@ curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.
 healthd --version
 ```
 
-### Source build
+## Quickstart
 
 ```bash
-go install github.com/uinaf/healthd@latest
-healthd --version
-```
-
-## First run
-
-1. Initialize starter config:
-
-```bash
+# 1) create starter config
 healthd init
-# optional custom path:
-# healthd init --config /path/to/config.toml
-# overwrite existing config:
-# healthd init --force
-```
 
-2. Validate + run checks:
-
-```bash
+# 2) validate config
 healthd validate --config ~/.config/healthd/config.toml
+
+# 3) run checks once
 healthd check --config ~/.config/healthd/config.toml
+
+# 4) test notifier
+healthd notify test --config ~/.config/healthd/config.toml
+
+# 5) install daemon mode
+healthd daemon install --config ~/.config/healthd/config.toml
 ```
 
-## Notifications
-
-Use `ntfy` for the easiest phone push path.
-
-### Config snippet
+## Example notifier config
 
 ```toml
 [notify]
@@ -68,29 +74,20 @@ command = "logger -t healthd-alert"
 timeout = "5s"
 ```
 
-### Choose a strong random topic
+## Testing
+
+Required CI checks:
 
 ```bash
-openssl rand -hex 16
-# example: 6f1a6b3f6a4a89e4d117e8a355ec21d0
+go test ./...
+go test ./integration/... -v
+go test ./e2e/cli/... -v
 ```
 
-Then set `topic = "<that-random-value>"` in config.
-
-### Validate, check, then test notify
+Optional host-level macOS daemon e2e:
 
 ```bash
-healthd validate --config ~/.config/healthd/config.toml
-healthd check --config ~/.config/healthd/config.toml
-healthd notify test --config ~/.config/healthd/config.toml --backend ntfy-phone
-# backup path:
-healthd notify test --config ~/.config/healthd/config.toml --backend local-log
+HEALTHD_HOST_E2E=1 go test -tags=hoste2e ./e2e/host/... -v
 ```
 
-## Local verification
-
-Run the same checks used in CI:
-
-```bash
-go run ./cmd/verify
-```
+More details: `docs/testing.md`.
