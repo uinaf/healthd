@@ -15,6 +15,20 @@ type PlistSpec struct {
 	ConfigPath string
 	StdoutPath string
 	StderrPath string
+	Path       string
+}
+
+var defaultLaunchAgentPathEntries = []string{
+	"/opt/homebrew/bin",
+	"/usr/local/bin",
+	"/usr/bin",
+	"/bin",
+	"/usr/sbin",
+	"/sbin",
+}
+
+func DefaultLaunchAgentPath() string {
+	return strings.Join(defaultLaunchAgentPathEntries, ":")
 }
 
 var launchAgentTemplate = template.Must(template.New("launchagent").Parse(`<?xml version="1.0" encoding="UTF-8"?>
@@ -35,6 +49,11 @@ var launchAgentTemplate = template.Must(template.New("launchagent").Parse(`<?xml
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>{{ .Path }}</string>
+  </dict>
   <key>StandardOutPath</key>
   <string>{{ .StdoutPath }}</string>
   <key>StandardErrorPath</key>
@@ -57,18 +76,25 @@ func RenderPlist(spec PlistSpec) (string, error) {
 		return "", errors.New("plist log paths are required")
 	}
 
+	path := strings.TrimSpace(spec.Path)
+	if path == "" {
+		path = DefaultLaunchAgentPath()
+	}
+
 	data := struct {
 		Label      string
 		Executable string
 		ConfigPath string
 		StdoutPath string
 		StderrPath string
+		Path       string
 	}{
 		Label:      spec.Label,
 		Executable: filepath.Clean(spec.Executable),
 		ConfigPath: filepath.Clean(spec.ConfigPath),
 		StdoutPath: filepath.Clean(spec.StdoutPath),
 		StderrPath: filepath.Clean(spec.StderrPath),
+		Path:       path,
 	}
 
 	var buf bytes.Buffer

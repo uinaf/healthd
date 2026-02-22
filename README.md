@@ -56,6 +56,9 @@ healthd notify test --config ~/.config/healthd/config.toml
 healthd daemon install --config ~/.config/healthd/config.toml
 ```
 
+On macOS, daemon install writes an explicit LaunchAgent `PATH`
+(`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`) so command checks can find Homebrew binaries under launchd.
+
 ## Example notifier config
 
 ```toml
