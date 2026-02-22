@@ -66,6 +66,7 @@ Use this skill for practical host operations. Prefer reversible steps and show c
 - `healthd init` fails with existing file: rerun with `--force` only if overwrite is intended.
 - No checks run: verify `[[check]]` entries and any `--only/--group` filters.
 - Daemon not running: check `healthd daemon status` and `healthd daemon logs --lines 100`.
+- Command checks failing with `exit 127` under daemon: remember launchd default PATH is limited; healthd now writes explicit PATH (`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`) into LaunchAgent on install. Reinstall daemon after upgrading.
 - Alerts not sent: verify notifier blocks and run `healthd notify test --backend <name>`.
 - Command checks flaky: increase `timeout`, run command manually, then retest with `healthd check`.
 

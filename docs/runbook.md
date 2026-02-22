@@ -24,6 +24,21 @@ healthd daemon status
 
 Expected: `status: running (pid <n>)` after installation.
 
+## Daemon PATH notes (macOS launchd)
+
+`launchd` uses a limited default PATH (`/usr/bin:/bin:/usr/sbin:/sbin`).
+As of current releases, `healthd daemon install` writes an explicit PATH into the LaunchAgent plist:
+
+`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`
+
+This prevents command checks from failing with `exit 127` when binaries live under Homebrew paths.
+
+If you still see command-not-found failures, inspect daemon logs:
+
+```bash
+healthd daemon logs --lines 100
+```
+
 ## Rollback
 
 Use rollback if alert quality regresses or daemon repeatedly exits.

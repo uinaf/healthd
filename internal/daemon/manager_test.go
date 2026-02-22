@@ -25,6 +25,9 @@ func TestRenderPlistIncludesRequiredFields(t *testing.T) {
 		"<string>daemon</string>",
 		"<string>run</string>",
 		"<string>/tmp/healthd.toml</string>",
+		"<key>EnvironmentVariables</key>",
+		"<key>PATH</key>",
+		"<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>",
 		"<true/>",
 	} {
 		if !strings.Contains(plist, expected) {
@@ -33,6 +36,12 @@ func TestRenderPlistIncludesRequiredFields(t *testing.T) {
 	}
 	if strings.Contains(plist, "<key>StartInterval</key>") {
 		t.Fatalf("expected plist to omit StartInterval when KeepAlive is enabled")
+	}
+}
+
+func TestDefaultLaunchAgentPath(t *testing.T) {
+	if got, want := DefaultLaunchAgentPath(), "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"; got != want {
+		t.Fatalf("DefaultLaunchAgentPath() = %q, want %q", got, want)
 	}
 }
 
@@ -62,6 +71,12 @@ func TestManagerInstallWritesPlistAndRestartsService(t *testing.T) {
 	}
 	if strings.Contains(string(content), "<key>StartInterval</key>") {
 		t.Fatalf("expected StartInterval to be omitted, got %q", string(content))
+	}
+	if !strings.Contains(string(content), "<key>PATH</key>") {
+		t.Fatalf("expected PATH environment in plist, got %q", string(content))
+	}
+	if !strings.Contains(string(content), DefaultLaunchAgentPath()) {
+		t.Fatalf("expected default PATH %q in plist, got %q", DefaultLaunchAgentPath(), string(content))
 	}
 }
 
