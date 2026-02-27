@@ -49,10 +49,16 @@ healthd validate --config ~/.config/healthd/config.toml
 # 3) run checks once
 healthd check --config ~/.config/healthd/config.toml
 
-# 4) test notifier
+# 4) view status in terminal UI
+healthd status --config ~/.config/healthd/config.toml
+
+# 5) live-updating dashboard
+healthd status --config ~/.config/healthd/config.toml --watch
+
+# 6) test notifier
 healthd notify test --config ~/.config/healthd/config.toml
 
-# 5) install daemon mode
+# 7) install daemon mode
 healthd daemon install --config ~/.config/healthd/config.toml
 ```
 
