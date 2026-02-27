@@ -12,6 +12,7 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newDaemonCommand())
 	root.AddCommand(newInitCommand())
 	root.AddCommand(newNotifyCommand())
+	root.AddCommand(newStatusCommand())
 	root.AddCommand(newValidateCommand())
 	return root
 }
