@@ -228,12 +228,12 @@ func (m Model) renderAlerts() string {
 
 func (m Model) statusStyle(result runner.CheckResult) (string, lipgloss.Style) {
 	if result.TimedOut {
-		return "!", m.styles.TimedOut
+		return "⚠", m.styles.TimedOut
 	}
 	if result.Passed {
-		return "v", m.styles.Pass
+		return "✓", m.styles.Pass
 	}
-	return "x", m.styles.Fail
+	return "✗", m.styles.Fail
 }
 
 func formatDuration(duration time.Duration) string {

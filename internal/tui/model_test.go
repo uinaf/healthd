@@ -156,7 +156,7 @@ func TestTimedOutCheckRendering(t *testing.T) {
 	m = updated.(Model)
 
 	view := m.View()
-	if !strings.Contains(view, "!") {
+	if !strings.Contains(view, "⚠") {
 		t.Fatalf("expected '!' indicator for timed out, got: %q", view)
 	}
 }
