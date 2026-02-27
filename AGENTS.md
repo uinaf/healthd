@@ -1,28 +1,40 @@
-# AGENTS.md
+# healthd
 
-Project instructions for coding agents in `healthd`.
+Local host health-check daemon. Runs checks, alerts on transitions. See `docs/ARCHITECTURE.md`.
 
 ## Stack
-- Language: Go
-- CLI: Cobra
-- Config: TOML (strict parsing + validation)
+- Go 1.24, Cobra CLI, TOML config
+- TUI: charmbracelet/bubbletea + lipgloss
+- Notifications: ntfy, command backends
 
-## Workflow
-- Build in small vertical slices aligned to issues.
-- Prefer stacked PRs with Graphite for dependent work.
-- Keep behavior deterministic; avoid hidden magic.
-
-## Quality Gate (must pass before commit)
-
+## Commands
 ```bash
-go fmt ./...
-go test ./...
+go build ./...           # build
+go test ./...            # all tests
+go vet ./...             # lint
+go test -cover ./...     # coverage (80% gate)
+make install             # build → ~/.local/bin/healthd
+scripts/release.sh vX.Y.Z  # full release + brew update
 ```
 
-When linters are added, include them in the gate.
+## Running
+```bash
+healthd check --config ~/.config/healthd/config.toml       # one-shot
+healthd status --config ~/.config/healthd/config.toml       # TUI
+healthd status --config ~/.config/healthd/config.toml -w    # live dashboard
+healthd daemon install --config ~/.config/healthd/config.toml  # launchd
+```
+
+## Paths
+- **Binary:** `~/.local/bin/healthd`
+- **Config:** `~/.config/healthd/config.toml`
+- **State:** `~/.local/state/healthd/` (alerts.log)
+- **LaunchAgent:** `com.uinaf.healthd`
 
 ## Conventions
-- Keep packages focused and testable.
-- Parse config into typed structs; reject unknown keys.
-- No auto-remediation in v1 (detect/report only).
-- Do not add unrelated changes in the same branch.
+- Build in small vertical slices aligned to issues
+- Prefer stacked PRs with Graphite for dependent work
+- Parse config into typed structs; reject unknown keys
+- No auto-remediation in v1 (detect/report only)
+- Keep packages focused and testable
+- Do not add unrelated changes in the same branch
