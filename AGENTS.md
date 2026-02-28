@@ -22,14 +22,13 @@ scripts/release.sh vX.Y.Z  # full release + brew update
 healthd check --config ~/.config/healthd/config.toml       # one-shot
 healthd status --config ~/.config/healthd/config.toml       # TUI
 healthd status --config ~/.config/healthd/config.toml -w    # live dashboard
-healthd daemon install --config ~/.config/healthd/config.toml  # launchd
+healthd daemon run --config ~/.config/healthd/config.toml   # long-running loop (managed by process-compose)
 ```
 
 ## Paths
 - **Binary:** `~/.local/bin/healthd`
 - **Config:** `~/.config/healthd/config.toml`
 - **State:** `~/.local/state/healthd/` (alerts.log)
-- **LaunchAgent:** `com.uinaf.healthd`
 
 ## Conventions
 - Build in small vertical slices aligned to issues
