@@ -6,7 +6,7 @@ Local host health-check daemon. Runs checks, tracks state, sends alerts on trans
 
 ```mermaid
 graph LR
-  Cron[LaunchAgent] -->|interval| Daemon
+  PC[process-compose] -->|manages| Daemon
   Daemon -->|shell exec| Checks[Health Checks]
   Daemon -->|on transition| Notify[Notifiers]
   Notify --> Ntfy[(ntfy)]
@@ -22,7 +22,7 @@ graph LR
 
 | Component | Responsibility |
 |-----------|---------------|
-| **cmd** | Cobra CLI: check, status, daemon, init, validate, notify |
+| **cmd** | Cobra CLI: check, status, daemon run, init, validate, notify |
 | **runner** | Execute checks, filter, collect results |
 | **daemon** | Continuous loop, fail/recover transition tracking |
 | **notify** | Alert backends (ntfy, command), cooldown logic |
