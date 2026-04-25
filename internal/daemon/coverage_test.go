@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +14,9 @@ import (
 )
 
 func TestRunLoopAdditionalBranches(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
 	if err := RunLoop(context.Background(), config.Config{Interval: "bad"}, io.Discard); err == nil || !strings.Contains(err.Error(), "parse schedule interval") {
 		t.Fatalf("expected interval parse error, got %v", err)
 	}
@@ -56,5 +61,14 @@ func TestRunLoopAdditionalBranches(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "notify dispatch error for failing") {
 		t.Fatalf("expected dispatch error output, got %q", out.String())
+	}
+
+	alertsPath := filepath.Join(homeDir, ".local", "state", "healthd", "alerts.log")
+	raw, err := os.ReadFile(alertsPath)
+	if err != nil {
+		t.Fatalf("read alerts.log: %v", err)
+	}
+	if !strings.Contains(string(raw), "[crit] failing") {
+		t.Fatalf("expected alerts.log to contain transition for failing check, got %q", string(raw))
 	}
 }

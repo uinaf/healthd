@@ -4,10 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/uinaf/healthd/internal/alertlog"
 )
 
 var alertLinePattern = regexp.MustCompile(`^(\S+) \[([^\]]+)\] ([^(]+) \(([^)]*)\) - (.*)$`)
@@ -21,11 +22,7 @@ type AlertLine struct {
 }
 
 func DefaultAlertsLogPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolve user home: %w", err)
-	}
-	return filepath.Join(home, ".local", "state", "healthd", "alerts.log"), nil
+	return alertlog.DefaultPath()
 }
 
 func LoadRecentAlerts(path string, limit int) ([]AlertLine, error) {

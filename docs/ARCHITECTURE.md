@@ -26,6 +26,7 @@ graph LR
 | **runner** | Execute checks, filter, collect results |
 | **daemon** | Continuous loop, fail/recover transition tracking |
 | **notify** | Alert backends (ntfy, command), cooldown logic |
+| **alertlog** | Append-only writer for `~/.local/state/healthd/alerts.log` (read by TUI) |
 | **tui** | Bubbletea status display, watch mode |
 | **config** | TOML parsing, validation |
 
