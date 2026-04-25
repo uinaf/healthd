@@ -2,28 +2,38 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	defaultCoverageThreshold = 80.0
-	golangCILintVersion      = "v1.64.8"
+	defaultCoverageThreshold        = 80.0
+	defaultPackageCoverageThreshold = 70.0
+	golangCILintVersion             = "v1.64.8"
 )
+
+type packageCoverage struct {
+	Name     string
+	Coverage float64
+}
 
 func main() {
 	threshold := flag.Float64("min-coverage", defaultCoverageThreshold, "minimum total coverage percentage")
+	pkgThreshold := flag.Float64("min-package-coverage", defaultPackageCoverageThreshold, "minimum per-package coverage percentage (skips packages with no statements)")
 	flag.Parse()
 
-	if err := verify(*threshold); err != nil {
+	if err := verify(*threshold, *pkgThreshold); err != nil {
 		fmt.Fprintf(os.Stderr, "\n❌ verification failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -31,7 +41,7 @@ func main() {
 	fmt.Println("\n✅ verification passed")
 }
 
-func verify(threshold float64) error {
+func verify(threshold, pkgThreshold float64) error {
 	files, err := listGoFiles(".")
 	if err != nil {
 		return fmt.Errorf("discover go files: %w", err)
@@ -48,7 +58,8 @@ func verify(threshold float64) error {
 	coverageFile := filepath.Join(os.TempDir(), fmt.Sprintf("healthd-coverage-%d.out", time.Now().UnixNano()))
 	defer os.Remove(coverageFile)
 
-	if err := runTests(coverageFile); err != nil {
+	pkgCovs, err := runTests(coverageFile)
+	if err != nil {
 		return err
 	}
 
@@ -57,10 +68,21 @@ func verify(threshold float64) error {
 		return err
 	}
 
-	fmt.Printf("• coverage: %.1f%% (threshold %.1f%%)\n", coverage, threshold)
+	fmt.Printf("• total coverage: %.1f%% (threshold %.1f%%)\n", coverage, threshold)
 	if coverage < threshold {
-		return fmt.Errorf("coverage %.1f%% is below threshold %.1f%%", coverage, threshold)
+		return fmt.Errorf("total coverage %.1f%% is below threshold %.1f%%", coverage, threshold)
 	}
+
+	var weak []string
+	for _, pc := range pkgCovs {
+		if pc.Coverage < pkgThreshold {
+			weak = append(weak, fmt.Sprintf("%s (%.1f%%)", pc.Name, pc.Coverage))
+		}
+	}
+	if len(weak) > 0 {
+		return fmt.Errorf("per-package coverage below %.1f%%: %s", pkgThreshold, strings.Join(weak, ", "))
+	}
+	fmt.Printf("• per-package coverage: all packages ≥ %.1f%%\n", pkgThreshold)
 
 	return nil
 }
@@ -144,25 +166,46 @@ func runLint() error {
 	return nil
 }
 
-func runTests(coverageFile string) error {
+func runTests(coverageFile string) ([]packageCoverage, error) {
 	pkgs, err := testPackages()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(pkgs) == 0 {
-		return errors.New("no test packages found")
+		return nil, errors.New("no test packages found")
 	}
 
 	fmt.Printf("• go test %s\n", strings.Join(pkgs, " "))
 	args := append([]string{"test"}, pkgs...)
 	args = append(args, "-covermode=atomic", "-coverprofile="+coverageFile)
 	cmd := exec.Command("go", args...)
-	cmd.Stdout = os.Stdout
+	var buf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("run go test: %w", err)
+		return nil, fmt.Errorf("run go test: %w", err)
 	}
-	return nil
+	return parsePackageCoverage(buf.String()), nil
+}
+
+var packageCoverageLine = regexp.MustCompile(`^ok\s+(\S+)\s+\S+\s+coverage:\s+([0-9.]+)% of statements$`)
+
+func parsePackageCoverage(output string) []packageCoverage {
+	var results []packageCoverage
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		matches := packageCoverageLine.FindStringSubmatch(line)
+		if len(matches) != 3 {
+			continue
+		}
+		coverage, err := strconv.ParseFloat(matches[2], 64)
+		if err != nil {
+			continue
+		}
+		results = append(results, packageCoverage{Name: matches[1], Coverage: coverage})
+	}
+	return results
 }
 
 func testPackages() ([]string, error) {
