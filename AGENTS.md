@@ -3,18 +3,25 @@
 Local host health-check daemon. Runs checks, alerts on transitions. See `docs/ARCHITECTURE.md`.
 
 ## Stack
-- Go 1.24, Cobra CLI, TOML config
+- Go 1.26, Cobra CLI, TOML config
 - TUI: charmbracelet/bubbletea + lipgloss
 - Notifications: ntfy, command backends
 
 ## Commands
 ```bash
-go build ./...           # build
-go test ./...            # all tests
-go vet ./...             # lint
-go test -cover ./...     # coverage (80% gate)
-make install             # build → ~/.local/bin/healthd
-scripts/release.sh vX.Y.Z  # full release + brew update
+go run ./cmd/verify                     # full gate (fmt + lint + test + 80% coverage)
+go build ./...                          # build
+go test ./...                           # quick: all tests, no gate
+go build -o ~/.local/bin/healthd .      # install to ~/.local/bin
+scripts/release.sh vX.Y.Z               # full release + brew update
+```
+
+## Env
+- `HEALTHD_CONFIG` — override config path (also via `--config`); useful for per-worktree isolation
+
+## Hooks
+```bash
+git config core.hooksPath .git-hooks    # one-time: enable pre-push verifier
 ```
 
 ## Running
