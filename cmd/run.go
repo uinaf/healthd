@@ -11,8 +11,6 @@ import (
 	"github.com/uinaf/healthd/internal/loop"
 )
 
-var runLoop = loop.Run
-
 func newRunCommand() *cobra.Command {
 	var configPath string
 
@@ -23,13 +21,13 @@ func newRunCommand() *cobra.Command {
 			"(process-compose, systemd, launchd) to manage start/stop/restart in production.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, cfg, err := loadConfigForRun(configPath)
+			cfg, err := loadConfigForRun(configPath)
 			if err != nil {
 				return err
 			}
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			return runLoop(ctx, cfg, cmd.ErrOrStderr())
+			return loop.Run(ctx, cfg, cmd.ErrOrStderr())
 		},
 	}
 
@@ -37,14 +35,10 @@ func newRunCommand() *cobra.Command {
 	return cmd
 }
 
-func loadConfigForRun(path string) (string, config.Config, error) {
+func loadConfigForRun(path string) (config.Config, error) {
 	resolvedPath, err := config.ResolvePath(path)
 	if err != nil {
-		return "", config.Config{}, err
+		return config.Config{}, err
 	}
-	cfg, err := config.LoadFromPath(resolvedPath)
-	if err != nil {
-		return "", config.Config{}, err
-	}
-	return resolvedPath, cfg, nil
+	return config.LoadFromPath(resolvedPath)
 }
