@@ -34,11 +34,11 @@ func main() {
 	flag.Parse()
 
 	if err := verify(*threshold, *pkgThreshold); err != nil {
-		fmt.Fprintf(os.Stderr, "\n❌ verification failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "\n✗ verification failed: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Println("\n✅ verification passed")
+	fmt.Println("\n✓ verification passed")
 }
 
 func verify(threshold, pkgThreshold float64) error {
@@ -185,27 +185,43 @@ func runTests(coverageFile string) ([]packageCoverage, error) {
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("run go test: %w", err)
 	}
-	return parsePackageCoverage(buf.String()), nil
+	return parsePackageCoverage(buf.String(), len(pkgs))
 }
 
-var packageCoverageLine = regexp.MustCompile(`^ok\s+(\S+)\s+\S+\s+coverage:\s+([0-9.]+)% of statements$`)
+var (
+	packageCoverageLine     = regexp.MustCompile(`^ok\s+(\S+)\s+\S+\s+coverage:\s+([0-9.]+)% of statements$`)
+	packageNoStatementsLine = regexp.MustCompile(`^ok\s+(\S+)\s+\S+\s+coverage:\s+\[no statements\]$`)
+)
 
-func parsePackageCoverage(output string) []packageCoverage {
-	var results []packageCoverage
+// parsePackageCoverage parses `go test` stdout and returns coverage for tested packages with statements.
+// If expected > 0 but we matched zero result lines, returns an error so a silent `go test` output format
+// change fails the verifier instead of letting the per-package gate vacuously pass. (Packages with no
+// _test.go files print a non-matching bare line with no "ok" prefix, so a partial match count is normal —
+// only zero matches is a red flag.)
+func parsePackageCoverage(output string, expected int) ([]packageCoverage, error) {
+	var covered []packageCoverage
+	noStatements := 0
+
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		matches := packageCoverageLine.FindStringSubmatch(line)
-		if len(matches) != 3 {
+		if matches := packageCoverageLine.FindStringSubmatch(line); len(matches) == 3 {
+			coverage, err := strconv.ParseFloat(matches[2], 64)
+			if err != nil {
+				return nil, fmt.Errorf("parse coverage for %s: %w", matches[1], err)
+			}
+			covered = append(covered, packageCoverage{Name: matches[1], Coverage: coverage})
 			continue
 		}
-		coverage, err := strconv.ParseFloat(matches[2], 64)
-		if err != nil {
-			continue
+		if packageNoStatementsLine.MatchString(line) {
+			noStatements++
 		}
-		results = append(results, packageCoverage{Name: matches[1], Coverage: coverage})
 	}
-	return results
+
+	if expected > 0 && len(covered)+noStatements == 0 {
+		return nil, fmt.Errorf("parsed coverage for 0 of %d packages; `go test` output format may have changed", expected)
+	}
+	return covered, nil
 }
 
 func testPackages() ([]string, error) {
