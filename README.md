@@ -59,7 +59,7 @@ healthd status --config ~/.config/healthd/config.toml --watch
 healthd notify test --config ~/.config/healthd/config.toml
 
 # 7) run continuously (typically supervised by process-compose / systemd / launchd)
-healthd daemon run --config ~/.config/healthd/config.toml
+healthd run --config ~/.config/healthd/config.toml
 ```
 
 ## Example notifier config

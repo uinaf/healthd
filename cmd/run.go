@@ -8,37 +8,28 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/uinaf/healthd/internal/config"
-	"github.com/uinaf/healthd/internal/daemon"
+	"github.com/uinaf/healthd/internal/loop"
 )
 
-var daemonRunLoop = daemon.RunLoop
+var runLoop = loop.Run
 
-func newDaemonCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "daemon",
-		Short: "Manage healthd daemon",
-	}
-
-	cmd.AddCommand(newDaemonRunCommand())
-
-	return cmd
-}
-
-func newDaemonRunCommand() *cobra.Command {
+func newRunCommand() *cobra.Command {
 	var configPath string
 
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Run daemon health-check loop",
-		Args:  cobra.NoArgs,
+		Short: "Run the health-check loop in the foreground",
+		Long: "Run the health-check loop in the foreground. Use a process supervisor " +
+			"(process-compose, systemd, launchd) to manage start/stop/restart in production.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, cfg, err := loadConfigForDaemon(configPath)
+			_, cfg, err := loadConfigForRun(configPath)
 			if err != nil {
 				return err
 			}
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			return daemonRunLoop(ctx, cfg, cmd.ErrOrStderr())
+			return runLoop(ctx, cfg, cmd.ErrOrStderr())
 		},
 	}
 
@@ -46,7 +37,7 @@ func newDaemonRunCommand() *cobra.Command {
 	return cmd
 }
 
-func loadConfigForDaemon(path string) (string, config.Config, error) {
+func loadConfigForRun(path string) (string, config.Config, error) {
 	resolvedPath, err := config.ResolvePath(path)
 	if err != nil {
 		return "", config.Config{}, err

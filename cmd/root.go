@@ -9,9 +9,9 @@ func NewRootCommand() *cobra.Command {
 	}
 
 	root.AddCommand(newCheckCommand())
-	root.AddCommand(newDaemonCommand())
 	root.AddCommand(newInitCommand())
 	root.AddCommand(newNotifyCommand())
+	root.AddCommand(newRunCommand())
 	root.AddCommand(newStatusCommand())
 	root.AddCommand(newValidateCommand())
 	return root

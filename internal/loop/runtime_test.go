@@ -1,4 +1,4 @@
-package daemon
+package loop
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/uinaf/healthd/internal/config"
 )
 
-func TestRunLoopRejectsNonPositiveInterval(t *testing.T) {
+func TestRunRejectsNonPositiveInterval(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -33,7 +33,7 @@ func TestRunLoopRejectsNonPositiveInterval(t *testing.T) {
 				},
 			}
 
-			err := RunLoop(context.Background(), cfg, io.Discard)
+			err := Run(context.Background(), cfg, io.Discard)
 			if err == nil || !strings.Contains(err.Error(), "schedule interval must be greater than zero") {
 				t.Fatalf("expected non-positive interval error, got %v", err)
 			}

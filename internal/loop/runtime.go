@@ -1,4 +1,4 @@
-package daemon
+package loop
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/uinaf/healthd/internal/runner"
 )
 
-func RunLoop(ctx context.Context, cfg config.Config, out io.Writer) error {
+func Run(ctx context.Context, cfg config.Config, out io.Writer) error {
 	interval, err := time.ParseDuration(cfg.Interval)
 	if err != nil {
 		return fmt.Errorf("parse schedule interval: %w", err)

@@ -55,7 +55,7 @@ healthd check --config ~/.config/healthd/config.toml --json
 
 ```bash
 # Foreground (debug); Ctrl-C to stop:
-healthd daemon run --config ~/.config/healthd/config.toml
+healthd run --config ~/.config/healthd/config.toml
 
 # Production: have your supervisor (process-compose / systemd / launchd)
 # invoke the same command. Lifecycle (install/start/stop/logs) is the

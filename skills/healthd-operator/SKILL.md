@@ -53,7 +53,7 @@ Use this skill for practical host operations. Prefer reversible steps and show c
    - Add an `ntfy` backend topic in config if none exists.
    - Run `healthd notify test --config <path> --backend <name-or-type>`.
 6. **Run continuously**
-   - Foreground (debugging): `healthd daemon run --config <path>` — Ctrl-C to stop.
+   - Foreground (debugging): `healthd run --config <path>` — Ctrl-C to stop.
    - Production: configure your supervisor (process-compose, systemd unit, launchd plist) to invoke the same command. Lifecycle (start/stop/restart/logs) is the supervisor's responsibility, not healthd's.
 7. **Inspect history**
    - Recent transitions: `tail -n 20 ~/.local/state/healthd/alerts.log`

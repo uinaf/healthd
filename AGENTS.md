@@ -29,7 +29,7 @@ git config core.hooksPath .git-hooks    # one-time: enable pre-push verifier
 healthd check --config ~/.config/healthd/config.toml       # one-shot
 healthd status --config ~/.config/healthd/config.toml       # TUI
 healthd status --config ~/.config/healthd/config.toml -w    # live dashboard
-healthd daemon run --config ~/.config/healthd/config.toml   # long-running loop (managed by process-compose)
+healthd run --config ~/.config/healthd/config.toml          # long-running loop (managed by process-compose)
 ```
 
 ## Paths
