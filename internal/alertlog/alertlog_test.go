@@ -1,0 +1,97 @@
+package alertlog_test
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/uinaf/healthd/internal/alertlog"
+	"github.com/uinaf/healthd/internal/tui"
+)
+
+func TestFormatLineProducesTUIParseableOutput(t *testing.T) {
+	t.Parallel()
+
+	ts := time.Date(2026, 2, 27, 13, 0, 0, 0, time.UTC)
+	line := alertlog.FormatLine(ts, "recovered", "colima-running", "services", "ok")
+
+	expected := "2026-02-27T13:00:00Z [recovered] colima-running (services) - ok"
+	if line != expected {
+		t.Fatalf("unexpected line:\nwant: %q\ngot:  %q", expected, line)
+	}
+}
+
+func TestFormatLineCollapsesNewlinesInReason(t *testing.T) {
+	t.Parallel()
+
+	ts := time.Date(2026, 2, 27, 8, 37, 0, 0, time.UTC)
+	line := alertlog.FormatLine(ts, "crit", "noisy", "host", "first line\nsecond line\r\nthird")
+
+	if strings.ContainsAny(line, "\n\r") {
+		t.Fatalf("line contains newlines: %q", line)
+	}
+	if !strings.HasSuffix(line, " - first line second line third") {
+		t.Fatalf("reason not collapsed as expected: %q", line)
+	}
+}
+
+func TestAppendCreatesParentDirAndAppends(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "nested", "state", "alerts.log")
+
+	ts1 := time.Date(2026, 2, 27, 8, 37, 0, 0, time.UTC)
+	if err := alertlog.Append(path, ts1, "crit", "openclaw-up-to-date", "services", "expected exit_code=0, got 1"); err != nil {
+		t.Fatalf("first append: %v", err)
+	}
+
+	ts2 := time.Date(2026, 2, 27, 13, 0, 0, 0, time.UTC)
+	if err := alertlog.Append(path, ts2, "recovered", "colima-running", "services", "ok"); err != nil {
+		t.Fatalf("second append: %v", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d: %q", len(lines), lines)
+	}
+
+	alerts, err := tui.LoadRecentAlerts(path, 10)
+	if err != nil {
+		t.Fatalf("LoadRecentAlerts: %v", err)
+	}
+	if len(alerts) != 2 {
+		t.Fatalf("expected 2 parsed alerts, got %d", len(alerts))
+	}
+	if alerts[0].State != "crit" || alerts[0].CheckName != "openclaw-up-to-date" || alerts[0].Group != "services" {
+		t.Fatalf("first parsed alert mismatch: %+v", alerts[0])
+	}
+	if alerts[1].State != "recovered" || alerts[1].CheckName != "colima-running" {
+		t.Fatalf("second parsed alert mismatch: %+v", alerts[1])
+	}
+}
+
+func TestDefaultPathUnderUserHome(t *testing.T) {
+	t.Parallel()
+
+	got, err := alertlog.DefaultPath()
+	if err != nil {
+		t.Fatalf("DefaultPath: %v", err)
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("UserHomeDir: %v", err)
+	}
+
+	expected := filepath.Join(home, ".local", "state", "healthd", "alerts.log")
+	if got != expected {
+		t.Fatalf("unexpected path: want %q got %q", expected, got)
+	}
+}

@@ -8,11 +8,14 @@ Use this flow when asked to operate `healthd` on a local host from an OpenClaw s
 uname -a
 whoami
 which healthd || echo "healthd not in PATH"
-healthd daemon status || true
 printenv HEALTHD_CONFIG || true
+# Detect supervisor (any of these may apply, none guaranteed):
+process-compose process list 2>/dev/null | grep healthd || true
+launchctl list 2>/dev/null | grep healthd || true
+systemctl --user status healthd 2>/dev/null || true
 ```
 
-Ask for confirmation before changing daemon install state or replacing existing scheduler jobs.
+Ask for confirmation before changing supervisor state or replacing existing scheduler jobs.
 
 ## 2) Build/install binary
 
@@ -48,12 +51,15 @@ healthd check --config ~/.config/healthd/config.toml
 healthd check --config ~/.config/healthd/config.toml --json
 ```
 
-## 5) Daemon lifecycle
+## 5) Run continuously
 
 ```bash
-healthd daemon install --config ~/.config/healthd/config.toml
-healthd daemon status
-healthd daemon logs --lines 100
+# Foreground (debug); Ctrl-C to stop:
+healthd run --config ~/.config/healthd/config.toml
+
+# Production: have your supervisor (process-compose / systemd / launchd)
+# invoke the same command. Lifecycle (install/start/stop/logs) is the
+# supervisor's responsibility, not healthd's.
 ```
 
 ## 6) Notification smoke test
@@ -64,16 +70,24 @@ healthd notify test --config ~/.config/healthd/config.toml
 healthd notify test --config ~/.config/healthd/config.toml --backend ops-webhook
 ```
 
-## 7) Rollback path (confirm first)
+## 7) Inspect alert history
 
 ```bash
-healthd daemon uninstall
-# restore old scheduler only if user confirms the exact command/job
+tail -n 20 ~/.local/state/healthd/alerts.log
+# or live:
+healthd status --watch --config ~/.config/healthd/config.toml
+```
+
+## 8) Rollback path (confirm first)
+
+```bash
+# Ask the supervisor to stop healthd before restoring prior config/scheduler.
+# Restore old scheduler only if user confirms the exact command/job.
 ```
 
 ## Suggested operator response template
 
-- **State detected:** binary path, config path, daemon status.
+- **State detected:** binary path, config path, supervisor (if any), recent transitions from alerts.log.
 - **Actions run:** exact commands + outcomes.
 - **Risks:** what was not changed without confirmation.
-- **Next step:** whether to keep daemon, tune checks, or rollback.
+- **Next step:** whether to keep running, tune checks, or rollback.

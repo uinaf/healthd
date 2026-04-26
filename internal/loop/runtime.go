@@ -1,4 +1,4 @@
-package daemon
+package loop
 
 import (
 	"context"
@@ -6,12 +6,13 @@ import (
 	"io"
 	"time"
 
+	"github.com/uinaf/healthd/internal/alertlog"
 	"github.com/uinaf/healthd/internal/config"
 	"github.com/uinaf/healthd/internal/notify"
 	"github.com/uinaf/healthd/internal/runner"
 )
 
-func RunLoop(ctx context.Context, cfg config.Config, out io.Writer) error {
+func Run(ctx context.Context, cfg config.Config, out io.Writer) error {
 	interval, err := time.ParseDuration(cfg.Interval)
 	if err != nil {
 		return fmt.Errorf("parse schedule interval: %w", err)
@@ -34,12 +35,22 @@ func RunLoop(ctx context.Context, cfg config.Config, out io.Writer) error {
 		}
 	}
 
+	alertsPath, alertsPathErr := alertlog.DefaultPath()
+	if alertsPathErr != nil {
+		fmt.Fprintf(out, "alerts log disabled: %v\n", alertsPathErr)
+	}
+
 	runOnce := func() {
 		results := runner.RunChecks(ctx, cfg.Checks, cfg.Timeout)
 		for _, result := range results {
 			event, ok := tracker.EventFor(result)
 			if !ok {
 				continue
+			}
+			if alertsPath != "" {
+				if err := alertlog.Append(alertsPath, event.Timestamp, string(event.State), event.CheckName, event.Group, event.Reason); err != nil {
+					fmt.Fprintf(out, "alerts log write error for %s: %v\n", result.Name, err)
+				}
 			}
 			if len(notifiers) == 0 {
 				continue

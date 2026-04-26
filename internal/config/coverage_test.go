@@ -54,3 +54,39 @@ func TestConfigValidateMissingChecks(t *testing.T) {
 		t.Fatalf("expected missing checks error, got %v", err)
 	}
 }
+
+func TestValidateAlertSafeIdentifierRejectsParserBreakers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		field    string
+		value    string
+		wantSubs string
+	}{
+		{name: "open paren in name", field: "check[0].name", value: "weird(name", wantSubs: "must not contain '('"},
+		{name: "close paren in group", field: "check[0].group", value: "svc)", wantSubs: "must not contain ')'"},
+		{name: "open bracket", field: "check[0].name", value: "x[y", wantSubs: "must not contain '['"},
+		{name: "close bracket", field: "check[0].group", value: "x]y", wantSubs: "must not contain ']'"},
+		{name: "newline", field: "check[0].name", value: "line\nbreak", wantSubs: "must not contain newlines"},
+		{name: "carriage return", field: "check[0].name", value: "line\rbreak", wantSubs: "must not contain newlines"},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateAlertSafeIdentifier(tc.field, tc.value)
+			if err == nil || !strings.Contains(err.Error(), tc.wantSubs) {
+				t.Fatalf("expected error containing %q, got %v", tc.wantSubs, err)
+			}
+		})
+	}
+
+	if err := validateAlertSafeIdentifier("check[0].name", "disk-root"); err != nil {
+		t.Fatalf("unexpected error for safe identifier: %v", err)
+	}
+	if err := validateAlertSafeIdentifier("check[0].group", "host services"); err != nil {
+		t.Fatalf("unexpected error for safe identifier with space: %v", err)
+	}
+}

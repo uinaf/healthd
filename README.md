@@ -58,12 +58,9 @@ healthd status --config ~/.config/healthd/config.toml --watch
 # 6) test notifier
 healthd notify test --config ~/.config/healthd/config.toml
 
-# 7) install daemon mode
-healthd daemon install --config ~/.config/healthd/config.toml
+# 7) run continuously (typically supervised by process-compose / systemd / launchd)
+healthd run --config ~/.config/healthd/config.toml
 ```
-
-On macOS, daemon install writes an explicit LaunchAgent `PATH`
-(`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`) so command checks can find Homebrew binaries under launchd.
 
 ## Example notifier config
 
@@ -92,11 +89,3 @@ go test ./...
 go test ./integration/... -v
 go test ./e2e/cli/... -v
 ```
-
-Optional host-level macOS daemon e2e:
-
-```bash
-HEALTHD_HOST_E2E=1 go test -tags=hoste2e ./e2e/host/... -v
-```
-
-More details: `docs/testing.md`.

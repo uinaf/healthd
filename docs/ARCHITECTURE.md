@@ -6,26 +6,27 @@ Local host health-check daemon. Runs checks, tracks state, sends alerts on trans
 
 ```mermaid
 graph LR
-  PC[process-compose] -->|manages| Daemon
-  Daemon -->|shell exec| Checks[Health Checks]
-  Daemon -->|on transition| Notify[Notifiers]
+  PC[process-compose] -->|invokes healthd run| Loop
+  Loop -->|shell exec| Checks[Health Checks]
+  Loop -->|on transition| Notify[Notifiers]
+  Loop -->|on transition| Alerts[(alerts.log)]
   Notify --> Ntfy[(ntfy)]
   Notify --> Cmd[(command)]
   CLI[CLI] -->|one-shot| Checks
   CLI -->|TUI| Status[Status View]
-  Status --> Checks
-  Daemon & CLI -->|read| Config[(~/.config/config.toml)]
-  Daemon -->|write| Alerts[(alerts.log)]
+  Status --> Alerts
+  Loop & CLI -->|read| Config[(~/.config/config.toml)]
 ```
 
 ## Components
 
 | Component | Responsibility |
 |-----------|---------------|
-| **cmd** | Cobra CLI: check, status, daemon run, init, validate, notify |
+| **cmd** | Cobra CLI: check, status, run, init, validate, notify |
 | **runner** | Execute checks, filter, collect results |
-| **daemon** | Continuous loop, fail/recover transition tracking |
+| **loop** | Continuous run loop, fail/recover transition tracking |
 | **notify** | Alert backends (ntfy, command), cooldown logic |
+| **alertlog** | Append-only writer for `~/.local/state/healthd/alerts.log` (read by TUI) |
 | **tui** | Bubbletea status display, watch mode |
 | **config** | TOML parsing, validation |
 
