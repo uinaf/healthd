@@ -1,0 +1,136 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    # Concurrency is scoped to this job so superseded PR pushes cancel their
+    # own verify runs WITHOUT cancelling an in-flight `release` job that may
+    # already have created a tag/GitHub Release.
+    concurrency:
+      group: verify-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]') }}
+    name: verify (fmt + lint + test + coverage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read Go version from .tool-versions
+        id: go-version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(awk '$1 == "golang" { print $2; exit }' .tool-versions)
+          if [ -z "${version}" ]; then
+            echo "Failed to determine Go version from .tool-versions" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.go-version.outputs.version }}
+          cache: true
+          cache-dependency-path: |
+            **/go.sum
+
+      - name: Run verifier (fmt + lint + test + coverage gate)
+        run: go run ./cmd/verify
+
+  # Tag, release notes, GitHub Release, binaries, and Homebrew tap update
+  # all happen here on push to `main` after `verify` passes. Conventional
+  # Commits drive the version. No manual `scripts/release.sh` step.
+  release:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]') }}
+    name: release
+    needs: [verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: release-${{ github.repository }}-main
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Read Go version from .tool-versions
+        id: go-version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(awk '$1 == "golang" { print $2; exit }' .tool-versions)
+          if [ -z "${version}" ]; then
+            echo "Failed to determine Go version from .tool-versions" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.go-version.outputs.version }}
+          cache: true
+          cache-dependency-path: |
+            **/go.sum
+
+      # Decides next version from Conventional Commits, creates tag + GitHub
+      # Release with notes. Outputs `new_release_published` and
+      # `new_release_version` for downstream steps.
+      - name: Run semantic-release
+        id: release
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          extra_plugins: |
+            conventional-changelog-conventionalcommits@7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: glitch418x
+          GIT_AUTHOR_EMAIL: 189487110+glitch418x@users.noreply.github.com
+          GIT_COMMITTER_NAME: glitch418x
+          GIT_COMMITTER_EMAIL: 189487110+glitch418x@users.noreply.github.com
+
+      # semantic-release creates the tag on GitHub via the Release API; pull
+      # it down so GoReleaser's `git describe`-based template lookups work.
+      - name: Fetch release tag
+        if: steps.release.outputs.new_release_published == 'true'
+        run: git fetch --tags --force
+
+      - name: Run GoReleaser
+        if: steps.release.outputs.new_release_published == 'true'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.release.outputs.new_release_git_tag }}
+
+      - name: Attest build provenance
+        if: steps.release.outputs.new_release_published == 'true'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/healthd_*.tar.gz"
