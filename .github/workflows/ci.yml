@@ -111,14 +111,35 @@ jobs:
           GIT_COMMITTER_NAME: glitch418x
           GIT_COMMITTER_EMAIL: 189487110+glitch418x@users.noreply.github.com
 
-      # semantic-release creates the tag on GitHub via the Release API; pull
-      # it down so GoReleaser's `git describe`-based template lookups work.
-      - name: Fetch release tag
-        if: steps.release.outputs.new_release_published == 'true'
+      # semantic-release creates the tag via the GitHub Release API; pull all
+      # tags so we can detect one at HEAD (whether just-created or already
+      # present from a previous partial-failure run).
+      - name: Fetch tags
         run: git fetch --tags --force
 
+      # Gate GoReleaser on "is there a tag at HEAD?" rather than
+      # `steps.release.outputs.new_release_published`. Re-running the job
+      # after a partial failure (semantic-release succeeded, GoReleaser
+      # failed mid-flight, e.g. transient `TAP_GITHUB_TOKEN` outage) still
+      # publishes binaries to the existing GitHub Release because the tag
+      # is now there. Without this, the second run would short-circuit and
+      # leave the release without binaries.
+      - name: Detect tag at HEAD
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if tag=$(git describe --exact-match --tags HEAD 2>/dev/null); then
+            echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "found tag at HEAD: ${tag}"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "no tag at HEAD — skipping GoReleaser"
+          fi
+
       - name: Run GoReleaser
-        if: steps.release.outputs.new_release_published == 'true'
+        if: steps.tag.outputs.present == 'true'
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -127,10 +148,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ steps.release.outputs.new_release_git_tag }}
+          GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
 
       - name: Attest build provenance
-        if: steps.release.outputs.new_release_published == 'true'
+        if: steps.tag.outputs.present == 'true'
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: "dist/healthd_*.tar.gz"
