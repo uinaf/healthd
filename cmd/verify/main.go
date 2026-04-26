@@ -217,6 +217,9 @@ func parsePackageCoverage(output string, expected int) ([]packageCoverage, error
 			noStatements++
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan go test output: %w", err)
+	}
 
 	if expected > 0 && len(covered)+noStatements == 0 {
 		return nil, fmt.Errorf("parsed coverage for 0 of %d packages; `go test` output format may have changed", expected)
