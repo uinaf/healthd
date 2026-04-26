@@ -13,8 +13,10 @@ go run ./cmd/verify                     # full gate (fmt + lint + test + 80% cov
 go build ./...                          # build
 go test ./...                           # quick: all tests, no gate
 go build -o ~/.local/bin/healthd .      # install to ~/.local/bin
-scripts/release.sh vX.Y.Z               # full release + brew update
 ```
+
+## Releases
+Automated on push to `main`. CI verifies, `semantic-release` decides the version from Conventional Commits and tags + drafts the GitHub Release, then GoReleaser builds darwin/arm64 + darwin/amd64 tarballs and updates the formula in `uinaf/homebrew-tap`. No manual script — write `feat:` / `fix:` / `feat!:` commits and the bump happens. Use `[skip ci]` in the message to skip a release for a given push.
 
 ## Env
 - `HEALTHD_CONFIG` — override config path (also via `--config`); useful for per-worktree isolation

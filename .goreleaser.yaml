@@ -1,0 +1,75 @@
+version: 2
+
+project_name: healthd
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: healthd
+    main: .
+    binary: healthd
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/uinaf/healthd/cmd.Version={{ .Version }}
+      - -X github.com/uinaf/healthd/cmd.Commit={{ .Commit }}
+      - -X github.com/uinaf/healthd/cmd.BuildDate={{ .Date }}
+    goos:
+      - darwin
+    goarch:
+      - arm64
+      - amd64
+
+archives:
+  # Match the existing artifact layout: healthd_v0.X.Y_darwin_arm64.tar.gz
+  # containing only the `healthd` binary. The leading `v` keeps the brew
+  # formula URL pattern stable across releases.
+  - id: healthd
+    name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    # Match existing artifact layout: a tarball containing only the `healthd`
+    # binary. `none*` disables the README/LICENSE auto-include.
+    files:
+      - none*
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}"
+
+changelog:
+  # semantic-release owns release notes; goreleaser ships binaries only.
+  disable: true
+
+release:
+  github:
+    owner: uinaf
+    name: healthd
+  # semantic-release creates the release first; goreleaser uploads artifacts to it.
+  mode: append
+  prerelease: auto
+
+brews:
+  - name: healthd
+    repository:
+      owner: uinaf
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    commit_author:
+      name: glitch418x
+      email: 189487110+glitch418x@users.noreply.github.com
+    commit_msg_template: "healthd: bump to {{ .Tag }}"
+    homepage: "https://github.com/uinaf/healthd"
+    description: "Pluggable local host health-check daemon"
+    license: "MIT"
+    test: |
+      assert_match "healthd", shell_output("#{bin}/healthd --help")
