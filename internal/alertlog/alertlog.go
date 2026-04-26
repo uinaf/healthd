@@ -35,7 +35,7 @@ func Append(path string, t time.Time, state, checkName, group, reason string) er
 		return fmt.Errorf("create alerts log dir: %w", err)
 	}
 
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("open alerts log: %w", err)
 	}
