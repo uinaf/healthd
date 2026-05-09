@@ -45,4 +45,4 @@ healthd run --config ~/.config/healthd/config.toml          # long-running loop 
 - Parse config into typed structs; reject unknown keys
 - No auto-remediation in v1 (detect/report only)
 - Keep packages focused and testable
-- Do not add unrelated changes in the same branch
+- Keep each branch focused on one concern
