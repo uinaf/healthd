@@ -65,8 +65,8 @@ brews:
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     directory: Formula
     commit_author:
-      name: glitch418x
-      email: 189487110+glitch418x@users.noreply.github.com
+      name: github-actions[bot]
+      email: 41898282+github-actions[bot]@users.noreply.github.com
     commit_msg_template: "healthd: bump to {{ .Tag }}"
     homepage: "https://github.com/uinaf/healthd"
     description: "Pluggable local host health-check daemon"
