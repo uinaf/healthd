@@ -218,14 +218,16 @@ func TestRunChecksNumericParseFailureOmitsStdout(t *testing.T) {
 }
 
 func TestRunChecksCapsStdoutCapture(t *testing.T) {
-	contains := "needle"
+	containsMissing := "needle"
+	containsEarly := "START"
 	checks := []config.CheckConfig{
 		{Name: "noisy-exit-only", Command: `yes x | head -c 100000`},
-		{Name: "noisy-with-expect", Command: `yes x | head -c 100000`, Expect: config.ExpectConfig{Contains: &contains}},
+		{Name: "noisy-with-expect", Command: `yes x | head -c 100000`, Expect: config.ExpectConfig{Contains: &containsMissing}},
+		{Name: "noisy-prefix-ok", Command: `printf 'START'; yes x | head -c 100000`, Expect: config.ExpectConfig{Contains: &containsEarly}},
 	}
 	results := RunChecks(context.Background(), checks, "2s")
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results, got %d", len(results))
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
 	}
 	for _, result := range results {
 		if len(result.Stdout) > maxCaptureBytes {
@@ -240,6 +242,37 @@ func TestRunChecksCapsStdoutCapture(t *testing.T) {
 	}
 	if !strings.Contains(results[1].Reason, "truncated") {
 		t.Fatalf("expected truncation marker in reason, got %q", results[1].Reason)
+	}
+	if strings.HasPrefix(results[1].Reason, "ok ") {
+		t.Fatalf("expected non-ok truncation reason, got %q", results[1].Reason)
+	}
+	if results[2].Passed {
+		t.Fatalf("expected truncated passing-prefix check to fail closed, got %+v", results[2])
+	}
+	if results[2].Reason != "output truncated" {
+		t.Fatalf("expected reason replaced with output truncated, got %q", results[2].Reason)
+	}
+}
+
+func TestRunChecksCompletedExitNotMarkedCanceled(t *testing.T) {
+	parent, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Finish quickly, then cancel parent before result classification would race.
+	results := RunChecks(parent, []config.CheckConfig{
+		{Name: "fast-fail", Command: "false"},
+		{Name: "fast-ok", Command: "true"},
+	}, "1s")
+	cancel()
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	if results[0].Canceled || results[0].Passed || results[0].ExitCode != 1 {
+		t.Fatalf("expected genuine failure preserved, got %+v", results[0])
+	}
+	if results[1].Canceled || !results[1].Passed {
+		t.Fatalf("expected genuine pass preserved, got %+v", results[1])
 	}
 }
 

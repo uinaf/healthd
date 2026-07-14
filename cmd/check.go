@@ -140,7 +140,12 @@ func writeHumanReport(cmd *cobra.Command, results []runner.CheckResult) {
 
 func buildSummary(results []runner.CheckResult) reportSummary {
 	summary := reportSummary{Total: len(results)}
+	canceled := 0
 	for _, result := range results {
+		if result.Canceled {
+			canceled++
+			continue
+		}
 		if result.Passed {
 			summary.Passed++
 			continue
@@ -152,7 +157,7 @@ func buildSummary(results []runner.CheckResult) reportSummary {
 			summary.Critical++
 		}
 	}
-	summary.Failed = summary.Total - summary.Passed
+	summary.Failed = summary.Total - summary.Passed - canceled
 	return summary
 }
 

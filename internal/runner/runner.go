@@ -115,8 +115,11 @@ func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout s
 		result.Reason = "timed out"
 		return result
 	}
-	// Parent cancellation/deadline kills the command without a real health failure.
-	if parent.Err() != nil || errors.Is(ctx.Err(), context.Canceled) {
+
+	// Only mark canceled when the command was actually interrupted. A process
+	// that already exited with a normal status must keep that result even if
+	// the parent context is shutting down.
+	if isContextInterrupted(runErr, ctx, parent) {
 		result.Canceled = true
 		result.ExitCode = -1
 		result.Reason = "canceled"
@@ -137,7 +140,7 @@ func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout s
 	if stdout.Truncated() && expectsStdout(check.Expect) {
 		result.Passed = false
 		switch {
-		case result.Reason == "":
+		case result.Reason == "" || result.Reason == "ok":
 			result.Reason = "output truncated"
 		case strings.Contains(result.Reason, "truncated"):
 		default:
@@ -146,6 +149,23 @@ func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout s
 	}
 
 	return result
+}
+
+// isContextInterrupted reports whether the command failed because the run
+// context was canceled/deadline-killed, rather than a normal process exit.
+func isContextInterrupted(runErr error, ctx, parent context.Context) bool {
+	if runErr == nil {
+		return false
+	}
+	if ctx.Err() == nil && parent.Err() == nil {
+		return false
+	}
+	var exitErr *exec.ExitError
+	if errors.As(runErr, &exitErr) && exitErr.ExitCode() >= 0 {
+		// Process called exit(N) — keep that outcome even if shutdown raced in.
+		return false
+	}
+	return true
 }
 
 func resolveTimeout(checkTimeout string, defaultTimeout string) (time.Duration, error) {

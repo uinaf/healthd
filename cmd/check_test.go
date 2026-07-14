@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uinaf/healthd/internal/runner"
 )
 
 type checkCommandResult struct {
@@ -157,6 +158,23 @@ max = 1.0
 		"failed":   1,
 		"warning":  1,
 		"critical": 0,
+	}, summary)
+}
+
+func TestBuildSummarySkipsCanceled(t *testing.T) {
+	t.Parallel()
+
+	summary := buildSummary([]runner.CheckResult{
+		{Name: "ok", Passed: true},
+		{Name: "canceled", Canceled: true, ExitCode: -1, Passed: false},
+		{Name: "fail", Passed: false, ExitCode: 1},
+	})
+	require.Equal(t, reportSummary{
+		Total:    3,
+		Passed:   1,
+		Failed:   1,
+		Warning:  0,
+		Critical: 1,
 	}, summary)
 }
 

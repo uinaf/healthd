@@ -60,6 +60,9 @@ func NewTracker(cooldown time.Duration) *Tracker {
 }
 
 func (t *Tracker) EventFor(result runner.CheckResult) (Event, bool) {
+	if result.Canceled {
+		return Event{}, false
+	}
 	current := StateForResult(result)
 	previous, seen := t.states[result.Name]
 
@@ -327,8 +330,12 @@ func (n *ntfyNotifier) Notify(ctx context.Context, event Event) error {
 
 // StateForResult maps a check result to ok/warn/crit for alerts and summaries.
 // Failures with a non-zero exit or timeout are critical; expectation-only
-// failures that still exited 0 are warnings.
+// failures that still exited 0 are warnings. Canceled results are not health
+// failures — callers should skip them before classifying.
 func StateForResult(result runner.CheckResult) State {
+	if result.Canceled {
+		return StateOK
+	}
 	if result.Passed {
 		return StateOK
 	}

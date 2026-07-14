@@ -165,6 +165,18 @@ func TestStateForResultWarnBranch(t *testing.T) {
 	if got := StateForResult(runner.CheckResult{Passed: false, ExitCode: 0}); got != StateWarn {
 		t.Fatalf("expected warn, got %q", got)
 	}
+	if got := StateForResult(runner.CheckResult{Canceled: true, ExitCode: -1}); got != StateOK {
+		t.Fatalf("expected canceled to be non-crit, got %q", got)
+	}
+}
+
+func TestTrackerIgnoresCanceledResults(t *testing.T) {
+	t.Parallel()
+
+	tracker := NewTracker(0)
+	if _, ok := tracker.EventFor(runner.CheckResult{Name: "x", Canceled: true, ExitCode: -1}); ok {
+		t.Fatal("expected canceled result to produce no event")
+	}
 }
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)

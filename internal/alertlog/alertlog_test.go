@@ -1,6 +1,7 @@
 package alertlog_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,6 +34,20 @@ func TestFormatLineCollapsesNewlinesInReason(t *testing.T) {
 	}
 	if !strings.HasSuffix(line, " - first line second line third") {
 		t.Fatalf("reason not collapsed as expected: %q", line)
+	}
+}
+
+func TestFormatLineCapsReasonLength(t *testing.T) {
+	t.Parallel()
+
+	ts := time.Date(2026, 2, 27, 8, 37, 0, 0, time.UTC)
+	huge := strings.Repeat("x", 8*1024)
+	line := alertlog.FormatLine(ts, "crit", "noisy", "host", huge)
+	if !strings.HasSuffix(line, "…") {
+		t.Fatalf("expected capped reason marker, got len=%d", len(line))
+	}
+	if len(line) > 5*1024 {
+		t.Fatalf("expected formatted line to stay bounded, got %d", len(line))
 	}
 }
 
@@ -142,6 +157,29 @@ func TestLoadRecentLimitAndMissing(t *testing.T) {
 	}
 	if len(alerts) != 1 || alerts[0].CheckName != "b" {
 		t.Fatalf("expected last alert only, got %+v", alerts)
+	}
+}
+
+func TestLoadRecentKeepsRollingWindow(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "alerts.log")
+	var b strings.Builder
+	for i := 0; i < 20; i++ {
+		fmt.Fprintf(&b, "2026-02-27T08:%02d:00Z [crit] c%d (g) - r%d\n", i, i, i)
+	}
+	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	alerts, err := alertlog.LoadRecent(path, 3)
+	if err != nil {
+		t.Fatalf("LoadRecent: %v", err)
+	}
+	if len(alerts) != 3 {
+		t.Fatalf("expected 3 alerts, got %d", len(alerts))
+	}
+	if alerts[0].CheckName != "c17" || alerts[2].CheckName != "c19" {
+		t.Fatalf("expected last three alerts, got %+v", alerts)
 	}
 }
 

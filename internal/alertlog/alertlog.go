@@ -4,12 +4,21 @@ package alertlog
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
+)
+
+const (
+	// maxReasonBytes caps persisted/parsed reason text so a single alerts.log
+	// line cannot overwhelm the TUI scanner.
+	maxReasonBytes = 4 * 1024
+	// maxAlertLineBytes is the scanner token limit for one alerts.log line.
+	maxAlertLineBytes = 256 * 1024
 )
 
 var linePattern = regexp.MustCompile(`^(\S+) \[([^\]]+)\] ([^(]+) \(([^)]*)\) - (.*)$`)
@@ -65,7 +74,8 @@ func ParseLine(raw string) (Line, bool) {
 }
 
 // LoadRecent returns the last limit parsed lines from path. Missing files yield
-// an empty slice without error.
+// an empty slice without error. Scanning keeps only a rolling window of
+// `limit` entries so watch-mode refreshes stay O(limit) in memory.
 func LoadRecent(path string, limit int) ([]Line, error) {
 	if limit <= 0 {
 		return []Line{}, nil
@@ -80,8 +90,12 @@ func LoadRecent(path string, limit int) ([]Line, error) {
 	}
 	defer file.Close()
 
-	parsed := make([]Line, 0, limit)
+	buf := make([]Line, limit)
+	write := 0
+	count := 0
+
 	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxAlertLineBytes)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -91,16 +105,28 @@ func LoadRecent(path string, limit int) ([]Line, error) {
 		if !ok {
 			continue
 		}
-		parsed = append(parsed, entry)
+		buf[write] = entry
+		write = (write + 1) % limit
+		if count < limit {
+			count++
+		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("read alerts log %q: %w", path, err)
+		// Oversized historical lines should not blank the whole alerts panel.
+		if !errors.Is(err, bufio.ErrTooLong) {
+			return nil, fmt.Errorf("read alerts log %q: %w", path, err)
+		}
 	}
 
-	if len(parsed) <= limit {
-		return parsed, nil
+	out := make([]Line, count)
+	start := 0
+	if count == limit {
+		start = write
 	}
-	return parsed[len(parsed)-limit:], nil
+	for i := 0; i < count; i++ {
+		out[i] = buf[(start+i)%limit]
+	}
+	return out, nil
 }
 
 // ValidateSafeIdentifier rejects characters that would break the alerts.log
@@ -138,5 +164,9 @@ func sanitizeReason(reason string) string {
 	collapsed := strings.ReplaceAll(reason, "\r\n", " ")
 	collapsed = strings.ReplaceAll(collapsed, "\n", " ")
 	collapsed = strings.ReplaceAll(collapsed, "\r", " ")
-	return strings.TrimSpace(collapsed)
+	collapsed = strings.TrimSpace(collapsed)
+	if len(collapsed) > maxReasonBytes {
+		return collapsed[:maxReasonBytes] + "…"
+	}
+	return collapsed
 }
