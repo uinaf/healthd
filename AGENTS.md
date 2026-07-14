@@ -3,9 +3,9 @@
 Local host health-check daemon. Runs checks, alerts on transitions. See `docs/ARCHITECTURE.md`.
 
 ## Stack
-- Go 1.24+ (toolchain pin in `.tool-versions`), Cobra CLI, TOML config
+- Go 1.26+ (toolchain pin in `.tool-versions`), Cobra CLI, TOML config
 - TUI: charmbracelet/bubbletea + lipgloss
-- Notifications: ntfy, command backends
+- Notifications: ntfy, webhook, command backends
 
 ## Commands
 ```bash

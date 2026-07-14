@@ -156,13 +156,13 @@ func TestCommandWebhookAndNtfyNotifyBranches(t *testing.T) {
 func TestStateForResultWarnBranch(t *testing.T) {
 	t.Parallel()
 
-	if got := stateForResult(runner.CheckResult{Passed: true}); got != StateOK {
+	if got := StateForResult(runner.CheckResult{Passed: true}); got != StateOK {
 		t.Fatalf("expected ok, got %q", got)
 	}
-	if got := stateForResult(runner.CheckResult{Passed: false, ExitCode: 1}); got != StateCrit {
+	if got := StateForResult(runner.CheckResult{Passed: false, ExitCode: 1}); got != StateCrit {
 		t.Fatalf("expected crit, got %q", got)
 	}
-	if got := stateForResult(runner.CheckResult{Passed: false, ExitCode: 0}); got != StateWarn {
+	if got := StateForResult(runner.CheckResult{Passed: false, ExitCode: 0}); got != StateWarn {
 		t.Fatalf("expected warn, got %q", got)
 	}
 }

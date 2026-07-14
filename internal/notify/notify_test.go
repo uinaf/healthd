@@ -79,16 +79,48 @@ func TestTrackerCooldownSuppressesRapidTransitions(t *testing.T) {
 		t.Fatal("expected cooldown suppression")
 	}
 
+	// State must remain failing so recovery can still alert after cooldown.
 	now = now.Add(40 * time.Second)
+	result.Timestamp = now
+	event, ok := tracker.EventFor(result)
+	if !ok {
+		t.Fatal("expected deferred recovery event after cooldown elapsed")
+	}
+	if event.State != StateRecovered {
+		t.Fatalf("expected recovered state, got %q", event.State)
+	}
+}
+
+func TestTrackerCooldownDoesNotDropFlappyFail(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	tracker := NewTracker(30 * time.Second)
+	tracker.now = func() time.Time { return now }
+
+	result := runner.CheckResult{Name: "db", Timestamp: now, Passed: false, ExitCode: 1, Reason: "exit 1"}
+	if _, ok := tracker.EventFor(result); !ok {
+		t.Fatal("expected first fail event")
+	}
+
+	now = now.Add(5 * time.Second)
+	result.Passed = true
+	result.ExitCode = 0
+	result.Reason = "ok"
+	if _, ok := tracker.EventFor(result); ok {
+		t.Fatal("expected recovery suppressed by cooldown")
+	}
+
+	now = now.Add(5 * time.Second)
 	result.Passed = false
 	result.ExitCode = 2
 	result.Reason = "exit 2"
-	event, ok := tracker.EventFor(result)
-	if !ok {
-		t.Fatal("expected event after cooldown elapsed")
+	if _, ok := tracker.EventFor(result); ok {
+		t.Fatal("expected re-fail suppressed while still in cooldown and prior state")
 	}
-	if event.State != StateCrit {
-		t.Fatalf("expected crit state, got %q", event.State)
+
+	now = now.Add(40 * time.Second)
+	result.Timestamp = now
+	if _, ok := tracker.EventFor(result); ok {
+		t.Fatal("expected no new alert while still failing after cooldown (already alerted)")
 	}
 }
 

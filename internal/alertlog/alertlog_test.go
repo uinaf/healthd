@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/uinaf/healthd/internal/alertlog"
-	"github.com/uinaf/healthd/internal/tui"
 )
 
 func TestFormatLineProducesTUIParseableOutput(t *testing.T) {
@@ -62,9 +61,9 @@ func TestAppendCreatesParentDirAndAppends(t *testing.T) {
 		t.Fatalf("expected 2 lines, got %d: %q", len(lines), lines)
 	}
 
-	alerts, err := tui.LoadRecentAlerts(path, 10)
+	alerts, err := alertlog.LoadRecent(path, 10)
 	if err != nil {
-		t.Fatalf("LoadRecentAlerts: %v", err)
+		t.Fatalf("LoadRecent: %v", err)
 	}
 	if len(alerts) != 2 {
 		t.Fatalf("expected 2 parsed alerts, got %d", len(alerts))
@@ -93,5 +92,69 @@ func TestDefaultPathUnderUserHome(t *testing.T) {
 	expected := filepath.Join(home, ".local", "state", "healthd", "alerts.log")
 	if got != expected {
 		t.Fatalf("unexpected path: want %q got %q", expected, got)
+	}
+}
+
+func TestParseLineRejectsBadInput(t *testing.T) {
+	t.Parallel()
+
+	cases := []string{
+		"",
+		"not an alert line",
+		"2026-02-27T13:00:00Z [crit] name - missing group",
+		"not-a-time [crit] name (group) - reason",
+	}
+	for _, raw := range cases {
+		if _, ok := alertlog.ParseLine(raw); ok {
+			t.Fatalf("expected ParseLine to reject %q", raw)
+		}
+	}
+
+	line, ok := alertlog.ParseLine("2026-02-27T13:00:00Z [crit] api (svc) - boom")
+	if !ok {
+		t.Fatal("expected valid line to parse")
+	}
+	if line.State != "crit" || line.CheckName != "api" || line.Group != "svc" || line.Reason != "boom" {
+		t.Fatalf("unexpected parsed line: %+v", line)
+	}
+}
+
+func TestLoadRecentLimitAndMissing(t *testing.T) {
+	t.Parallel()
+
+	if alerts, err := alertlog.LoadRecent(filepath.Join(t.TempDir(), "missing.log"), 10); err != nil || len(alerts) != 0 {
+		t.Fatalf("expected empty missing file result, got %v err=%v", alerts, err)
+	}
+	if alerts, err := alertlog.LoadRecent(filepath.Join(t.TempDir(), "x.log"), 0); err != nil || len(alerts) != 0 {
+		t.Fatalf("expected empty for non-positive limit, got %v err=%v", alerts, err)
+	}
+
+	path := filepath.Join(t.TempDir(), "alerts.log")
+	content := "bad\n" +
+		"2026-02-27T08:00:00Z [crit] a (g) - one\n" +
+		"2026-02-27T09:00:00Z [recovered] b (g) - two\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	alerts, err := alertlog.LoadRecent(path, 1)
+	if err != nil {
+		t.Fatalf("LoadRecent: %v", err)
+	}
+	if len(alerts) != 1 || alerts[0].CheckName != "b" {
+		t.Fatalf("expected last alert only, got %+v", alerts)
+	}
+}
+
+func TestValidateSafeIdentifier(t *testing.T) {
+	t.Parallel()
+
+	if err := alertlog.ValidateSafeIdentifier("name", "disk-root"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := alertlog.ValidateSafeIdentifier("name", "bad(name"); err == nil {
+		t.Fatal("expected delimiter rejection")
+	}
+	if err := alertlog.ValidateSafeIdentifier("name", "bad\nname"); err == nil {
+		t.Fatal("expected newline rejection")
 	}
 }

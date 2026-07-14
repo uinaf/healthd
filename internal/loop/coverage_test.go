@@ -3,6 +3,7 @@ package loop
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -70,5 +71,151 @@ func TestRunAdditionalBranches(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), "[crit] failing") {
 		t.Fatalf("expected alerts.log to contain transition for failing check, got %q", string(raw))
+	}
+}
+
+func TestRunFailThenRecoverWritesBothAlerts(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	marker := filepath.Join(t.TempDir(), "state")
+	// First tick fails (missing marker); later ticks pass once the marker exists.
+	// A short-lived helper flips the marker after the first failure alert.
+	checkCmd := fmt.Sprintf(`test -f %q`, marker)
+
+	cfg := config.Config{
+		Interval: "25ms",
+		Timeout:  "1s",
+		Checks:   []config.CheckConfig{{Name: "flip", Command: checkCmd}},
+		Notify: config.NotifyConfig{Backends: []config.NotifyBackendConfig{{
+			Name:    "mark",
+			Type:    "command",
+			Command: fmt.Sprintf("touch %q", marker),
+			Timeout: "1s",
+		}}},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if err := Run(ctx, cfg, io.Discard); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	alertsPath := filepath.Join(homeDir, ".local", "state", "healthd", "alerts.log")
+	raw, err := os.ReadFile(alertsPath)
+	if err != nil {
+		t.Fatalf("read alerts.log: %v", err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, "[crit] flip") {
+		t.Fatalf("expected crit alert, got %q", text)
+	}
+	if !strings.Contains(text, "[recovered] flip") {
+		t.Fatalf("expected recovered alert, got %q", text)
+	}
+}
+
+func TestRunSkipsCancelKilledChecksButKeepsEarlierFailures(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	cfg := config.Config{
+		Interval: "1h",
+		Timeout:  "2s",
+		Checks: []config.CheckConfig{
+			{Name: "fast-fail", Command: "false"},
+			{Name: "slow-ok", Command: "sleep 2"},
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	if err := Run(ctx, cfg, io.Discard); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	alertsPath := filepath.Join(homeDir, ".local", "state", "healthd", "alerts.log")
+	raw, err := os.ReadFile(alertsPath)
+	if err != nil {
+		t.Fatalf("read alerts.log: %v", err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, "[crit] fast-fail") {
+		t.Fatalf("expected genuine earlier failure to alert, got %q", text)
+	}
+	if strings.Contains(text, "slow-ok") {
+		t.Fatalf("expected cancel-killed check to produce no alert, got %q", text)
+	}
+}
+
+func TestRunCancelDuringSlowPassProducesNoAlert(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	cfg := config.Config{
+		Interval: "1h",
+		Timeout:  "2s",
+		Checks:   []config.CheckConfig{{Name: "slow-ok", Command: "sleep 2"}},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	defer cancel()
+	if err := Run(ctx, cfg, io.Discard); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	alertsPath := filepath.Join(homeDir, ".local", "state", "healthd", "alerts.log")
+	if _, err := os.Stat(alertsPath); err == nil {
+		raw, readErr := os.ReadFile(alertsPath)
+		if readErr != nil {
+			t.Fatalf("read alerts.log: %v", readErr)
+		}
+		if strings.Contains(string(raw), "slow-ok") {
+			t.Fatalf("expected no cancel-induced alert, got %q", string(raw))
+		}
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("stat alerts.log: %v", err)
+	}
+}
+
+func TestRunCooldownDefersRecoveryUntilWindowElapses(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	marker := filepath.Join(t.TempDir(), "state")
+	checkCmd := fmt.Sprintf(`test -f %q`, marker)
+
+	cfg := config.Config{
+		Interval: "30ms",
+		Timeout:  "1s",
+		Checks:   []config.CheckConfig{{Name: "flip", Command: checkCmd}},
+		Notify: config.NotifyConfig{
+			Cooldown: "100ms",
+			Backends: []config.NotifyBackendConfig{{
+				Name:    "mark",
+				Type:    "command",
+				Command: fmt.Sprintf("touch %q", marker),
+				Timeout: "1s",
+			}},
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 450*time.Millisecond)
+	defer cancel()
+	if err := Run(ctx, cfg, io.Discard); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	alertsPath := filepath.Join(homeDir, ".local", "state", "healthd", "alerts.log")
+	raw, err := os.ReadFile(alertsPath)
+	if err != nil {
+		t.Fatalf("read alerts.log: %v", err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, "[crit] flip") {
+		t.Fatalf("expected crit alert, got %q", text)
+	}
+	if !strings.Contains(text, "[recovered] flip") {
+		t.Fatalf("expected deferred recovered alert after cooldown, got %q", text)
 	}
 }

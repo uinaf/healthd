@@ -7,9 +7,47 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/uinaf/healthd/internal/alertlog"
 	"github.com/uinaf/healthd/internal/config"
 	"github.com/uinaf/healthd/internal/runner"
 )
+
+func TestViewRendersRecentAlerts(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	alertsPath, err := alertlog.DefaultPath()
+	if err != nil {
+		t.Fatalf("DefaultPath: %v", err)
+	}
+	ts := time.Date(2026, 2, 27, 13, 0, 0, 0, time.UTC)
+	if err := alertlog.Append(alertsPath, ts, "crit", "api-up", "service", "exit 1"); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	m := NewModel(config.Config{Interval: "10s", Timeout: "5s"}, []config.CheckConfig{
+		{Name: "api-up", Group: "service", Command: "true"},
+	}, false)
+	m.runChecks = stubRunChecks([]runner.CheckResult{
+		{Name: "api-up", Group: "service", Passed: true, Reason: "ok"},
+	})
+
+	cmd := m.Init()
+	msg := cmd()
+	updated, _ := m.Update(msg)
+	m = updated.(Model)
+
+	view := m.View()
+	if !strings.Contains(view, "Recent Alerts") {
+		t.Fatalf("expected Recent Alerts header, got: %q", view)
+	}
+	if !strings.Contains(view, "api-up") {
+		t.Fatalf("expected alert check name in view, got: %q", view)
+	}
+	if !strings.Contains(view, "crit") {
+		t.Fatalf("expected alert state in view, got: %q", view)
+	}
+}
 
 func stubRunChecks(results []runner.CheckResult) runChecksFunc {
 	return func(_ context.Context, _ []config.CheckConfig, _ string) []runner.CheckResult {

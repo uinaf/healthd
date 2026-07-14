@@ -169,6 +169,80 @@ func TestRunChecksDefaultExitCodeExpectation(t *testing.T) {
 	}
 }
 
+func TestRunChecksEqualsAndNotExpectations(t *testing.T) {
+	ok := "ok"
+	forbidden := "bad"
+
+	results := RunChecks(context.Background(), []config.CheckConfig{
+		{Name: "equals-pass", Command: `printf "ok"`, Expect: config.ExpectConfig{Equals: &ok}},
+		{Name: "equals-fail", Command: `printf "nope"`, Expect: config.ExpectConfig{Equals: &ok}},
+		{Name: "not-pass", Command: `printf "ok"`, Expect: config.ExpectConfig{Not: &forbidden}},
+		{Name: "not-fail", Command: `printf "bad"`, Expect: config.ExpectConfig{Not: &forbidden}},
+	}, "1s")
+
+	if len(results) != 4 {
+		t.Fatalf("expected 4 results, got %d", len(results))
+	}
+	if !results[0].Passed {
+		t.Fatalf("expected equals pass, got %+v", results[0])
+	}
+	if results[1].Passed || !strings.Contains(results[1].Reason, "equals") {
+		t.Fatalf("expected equals failure, got %+v", results[1])
+	}
+	if !results[2].Passed {
+		t.Fatalf("expected not pass, got %+v", results[2])
+	}
+	if results[3].Passed || !strings.Contains(results[3].Reason, "not equal") {
+		t.Fatalf("expected not failure, got %+v", results[3])
+	}
+}
+
+func TestRunChecksNumericParseFailureOmitsStdout(t *testing.T) {
+	minValue := 1.0
+	results := RunChecks(context.Background(), []config.CheckConfig{
+		{
+			Name:    "secret-output",
+			Command: `printf "token=super-secret"`,
+			Expect:  config.ExpectConfig{Min: &minValue},
+		},
+	}, "1s")
+	if len(results) != 1 || results[0].Passed {
+		t.Fatalf("expected numeric parse failure, got %+v", results)
+	}
+	if results[0].Reason != "expected numeric output" {
+		t.Fatalf("expected sanitized reason, got %q", results[0].Reason)
+	}
+	if strings.Contains(results[0].Reason, "secret") {
+		t.Fatalf("reason leaked stdout: %q", results[0].Reason)
+	}
+}
+
+func TestRunChecksCapsStdoutCapture(t *testing.T) {
+	contains := "needle"
+	checks := []config.CheckConfig{
+		{Name: "noisy-exit-only", Command: `yes x | head -c 100000`},
+		{Name: "noisy-with-expect", Command: `yes x | head -c 100000`, Expect: config.ExpectConfig{Contains: &contains}},
+	}
+	results := RunChecks(context.Background(), checks, "2s")
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	for _, result := range results {
+		if len(result.Stdout) > maxCaptureBytes {
+			t.Fatalf("expected stdout capped at %d, got %d", maxCaptureBytes, len(result.Stdout))
+		}
+	}
+	if !results[0].Passed {
+		t.Fatalf("expected exit-code-only truncated check to stay passing, got %+v", results[0])
+	}
+	if results[1].Passed {
+		t.Fatalf("expected stdout-expect truncated check to fail closed, got %+v", results[1])
+	}
+	if !strings.Contains(results[1].Reason, "truncated") {
+		t.Fatalf("expected truncation marker in reason, got %q", results[1].Reason)
+	}
+}
+
 func intPtr(v int) *int {
 	return &v
 }

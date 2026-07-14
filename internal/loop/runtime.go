@@ -41,8 +41,16 @@ func Run(ctx context.Context, cfg config.Config, out io.Writer) error {
 	}
 
 	runOnce := func() {
+		if ctx.Err() != nil {
+			return
+		}
 		results := runner.RunChecks(ctx, cfg.Checks, cfg.Timeout)
 		for _, result := range results {
+			// Skip only checks killed by loop cancellation; keep genuine
+			// failures that completed earlier in the same serial batch.
+			if result.Canceled {
+				continue
+			}
 			event, ok := tracker.EventFor(result)
 			if !ok {
 				continue

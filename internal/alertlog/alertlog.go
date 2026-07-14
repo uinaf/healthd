@@ -1,15 +1,27 @@
-// Package alertlog is the canonical writer for ~/.local/state/healthd/alerts.log.
-// The TUI reads this file in internal/tui/alerts.go; the line format here must
-// match the parser there (alertLinePattern).
+// Package alertlog is the canonical writer and parser for
+// ~/.local/state/healthd/alerts.log.
 package alertlog
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
+
+var linePattern = regexp.MustCompile(`^(\S+) \[([^\]]+)\] ([^(]+) \(([^)]*)\) - (.*)$`)
+
+// Line is one parsed alerts.log entry.
+type Line struct {
+	Time      time.Time
+	State     string
+	CheckName string
+	Group     string
+	Reason    string
+}
 
 func DefaultPath() (string, error) {
 	home, err := os.UserHomeDir()
@@ -28,6 +40,81 @@ func FormatLine(t time.Time, state, checkName, group, reason string) string {
 		strings.TrimSpace(group),
 		sanitizeReason(reason),
 	)
+}
+
+// ParseLine parses one alerts.log line. Returns false when the line does not
+// match the canonical format.
+func ParseLine(raw string) (Line, bool) {
+	matches := linePattern.FindStringSubmatch(strings.TrimSpace(raw))
+	if len(matches) != 6 {
+		return Line{}, false
+	}
+
+	ts, err := time.Parse(time.RFC3339, matches[1])
+	if err != nil {
+		return Line{}, false
+	}
+
+	return Line{
+		Time:      ts,
+		State:     strings.TrimSpace(matches[2]),
+		CheckName: strings.TrimSpace(matches[3]),
+		Group:     strings.TrimSpace(matches[4]),
+		Reason:    strings.TrimSpace(matches[5]),
+	}, true
+}
+
+// LoadRecent returns the last limit parsed lines from path. Missing files yield
+// an empty slice without error.
+func LoadRecent(path string, limit int) ([]Line, error) {
+	if limit <= 0 {
+		return []Line{}, nil
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Line{}, nil
+		}
+		return nil, fmt.Errorf("open alerts log %q: %w", path, err)
+	}
+	defer file.Close()
+
+	parsed := make([]Line, 0, limit)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		entry, ok := ParseLine(line)
+		if !ok {
+			continue
+		}
+		parsed = append(parsed, entry)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read alerts log %q: %w", path, err)
+	}
+
+	if len(parsed) <= limit {
+		return parsed, nil
+	}
+	return parsed[len(parsed)-limit:], nil
+}
+
+// ValidateSafeIdentifier rejects characters that would break the alerts.log
+// line format delimiters used by FormatLine/ParseLine.
+func ValidateSafeIdentifier(field, value string) error {
+	for _, r := range value {
+		switch r {
+		case '(', ')', '[', ']':
+			return fmt.Errorf("%s %q must not contain '%c' (would break alerts.log parsing)", field, value, r)
+		case '\n', '\r':
+			return fmt.Errorf("%s %q must not contain newlines", field, value)
+		}
+	}
+	return nil
 }
 
 func Append(path string, t time.Time, state, checkName, group, reason string) error {

@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/uinaf/healthd/internal/alertlog"
 	"github.com/uinaf/healthd/internal/config"
 	"github.com/uinaf/healthd/internal/runner"
 )
@@ -28,7 +29,7 @@ type Model struct {
 	interval   time.Duration
 	results    []runner.CheckResult
 	alertsPath string
-	alerts     []AlertLine
+	alerts     []alertlog.Line
 	alertsErr  error
 	styles     styles
 	runChecks  runChecksFunc
@@ -40,7 +41,7 @@ func NewModel(cfg config.Config, checks []config.CheckConfig, watch bool) Model 
 		interval = 60 * time.Second
 	}
 
-	alertsPath, alertPathErr := DefaultAlertsLogPath()
+	alertsPath, alertPathErr := alertlog.DefaultPath()
 	m := Model{
 		cfg:       cfg,
 		checks:    checks,
@@ -137,7 +138,7 @@ func (m *Model) loadAlerts() {
 	if m.alertsPath == "" {
 		return
 	}
-	alerts, err := LoadRecentAlerts(m.alertsPath, 10)
+	alerts, err := alertlog.LoadRecent(m.alertsPath, 10)
 	if err != nil {
 		m.alertsErr = err
 		return

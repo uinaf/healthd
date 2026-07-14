@@ -116,6 +116,26 @@ unknown = true
 	}
 }
 
+func TestLoadFromPathRejectsPerCheckInterval(t *testing.T) {
+	path := writeTempConfig(t, `
+interval = "30s"
+timeout = "5s"
+
+[[check]]
+name = "disk"
+command = "df -h"
+interval = "5m"
+`)
+
+	_, err := LoadFromPath(path)
+	if err == nil {
+		t.Fatal("expected error for per-check interval")
+	}
+	if !strings.Contains(err.Error(), "unknown config fields") || !strings.Contains(err.Error(), "interval") {
+		t.Fatalf("expected unknown-field rejection for check interval, got %v", err)
+	}
+}
+
 func TestLoadFromPathRejectsInvalidConfig(t *testing.T) {
 	path := writeTempConfig(t, `
 interval = "not-a-duration"

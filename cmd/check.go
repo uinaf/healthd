@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/uinaf/healthd/internal/config"
+	"github.com/uinaf/healthd/internal/notify"
 	"github.com/uinaf/healthd/internal/runner"
 )
 
@@ -142,6 +143,13 @@ func buildSummary(results []runner.CheckResult) reportSummary {
 	for _, result := range results {
 		if result.Passed {
 			summary.Passed++
+			continue
+		}
+		switch notify.StateForResult(result) {
+		case notify.StateWarn:
+			summary.Warning++
+		case notify.StateCrit:
+			summary.Critical++
 		}
 	}
 	summary.Failed = summary.Total - summary.Passed

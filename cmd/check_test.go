@@ -100,7 +100,7 @@ command = "false"
 				"passed":   1,
 				"failed":   1,
 				"warning":  0,
-				"critical": 0,
+				"critical": 1,
 			}, summary)
 
 			var checks []map[string]json.RawMessage
@@ -125,6 +125,39 @@ command = "false"
 			}
 		})
 	}
+}
+
+func TestCheckJSONWarningSummary(t *testing.T) {
+	t.Parallel()
+
+	configPath := writeTestConfig(t, `
+interval = "1s"
+timeout = "1s"
+
+[[check]]
+name = "warn-check"
+group = "host"
+command = "printf 5"
+
+[check.expect]
+max = 1.0
+`)
+
+	result := executeCheckCommand(t, "check", "--config", configPath, "--json")
+	require.Error(t, result.err)
+
+	var envelope map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(result.stdout)), &envelope))
+
+	var summary map[string]int
+	require.NoError(t, json.Unmarshal(envelope["summary"], &summary))
+	require.Equal(t, map[string]int{
+		"total":    1,
+		"passed":   0,
+		"failed":   1,
+		"warning":  1,
+		"critical": 0,
+	}, summary)
 }
 
 func TestCheckHumanOutputGrouped(t *testing.T) {
