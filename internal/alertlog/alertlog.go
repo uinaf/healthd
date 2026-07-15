@@ -101,6 +101,9 @@ func LoadRecent(path string, limit int) ([]Line, error) {
 	for {
 		line, skipped, err := readAlertLine(reader, maxAlertLineBytes)
 		if skipped {
+			if err != nil && err != io.EOF {
+				return nil, fmt.Errorf("read alerts log %q: %w", path, err)
+			}
 			if err == io.EOF {
 				break
 			}
