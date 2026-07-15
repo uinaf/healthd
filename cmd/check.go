@@ -37,6 +37,7 @@ type checkReportItem struct {
 	Reason    string `json:"reason"`
 	ExitCode  int    `json:"exit_code"`
 	TimedOut  bool   `json:"timed_out"`
+	Canceled  bool   `json:"canceled"`
 	Timestamp string `json:"timestamp"`
 }
 
@@ -191,6 +192,7 @@ func writeJSONReport(cmd *cobra.Command, results []runner.CheckResult) error {
 			Reason:    result.Reason,
 			ExitCode:  result.ExitCode,
 			TimedOut:  result.TimedOut,
+			Canceled:  result.Canceled,
 			Timestamp: result.Timestamp.UTC().Format(time.RFC3339Nano),
 		})
 	}

@@ -115,6 +115,7 @@ command = "false"
 				"reason":    {},
 				"exit_code": {},
 				"timed_out": {},
+				"canceled":  {},
 				"timestamp": {},
 			}
 			for i, check := range checks {

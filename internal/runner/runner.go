@@ -67,6 +67,9 @@ func FilterChecks(checks []config.CheckConfig, only []string, groups []string) [
 
 func AllPassed(results []CheckResult) bool {
 	for _, result := range results {
+		if result.Canceled {
+			continue
+		}
 		if !result.Passed {
 			return false
 		}

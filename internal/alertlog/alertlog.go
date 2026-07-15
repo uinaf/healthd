@@ -4,20 +4,22 @@ package alertlog
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const (
 	// maxReasonBytes caps persisted/parsed reason text so a single alerts.log
 	// line cannot overwhelm the TUI scanner.
 	maxReasonBytes = 4 * 1024
-	// maxAlertLineBytes is the scanner token limit for one alerts.log line.
+	// maxAlertLineBytes is the maximum accepted size for one alerts.log line.
+	// Longer historical lines are skipped so later entries remain visible.
 	maxAlertLineBytes = 256 * 1024
 )
 
@@ -75,7 +77,8 @@ func ParseLine(raw string) (Line, bool) {
 
 // LoadRecent returns the last limit parsed lines from path. Missing files yield
 // an empty slice without error. Scanning keeps only a rolling window of
-// `limit` entries so watch-mode refreshes stay O(limit) in memory.
+// `limit` entries so watch-mode refreshes stay O(limit) in memory. Oversized
+// lines are skipped so later valid alerts remain visible.
 func LoadRecent(path string, limit int) ([]Line, error) {
 	if limit <= 0 {
 		return []Line{}, nil
@@ -94,11 +97,31 @@ func LoadRecent(path string, limit int) ([]Line, error) {
 	write := 0
 	count := 0
 
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 0, 64*1024), maxAlertLineBytes)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
+	reader := bufio.NewReaderSize(file, 64*1024)
+	for {
+		line, skipped, err := readAlertLine(reader, maxAlertLineBytes)
+		if skipped {
+			if err == io.EOF {
+				break
+			}
+			continue
+		}
+		if err == io.EOF {
+			if line != "" {
+				if entry, ok := ParseLine(line); ok {
+					buf[write] = entry
+					write = (write + 1) % limit
+					if count < limit {
+						count++
+					}
+				}
+			}
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read alerts log %q: %w", path, err)
+		}
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
 		entry, ok := ParseLine(line)
@@ -111,12 +134,6 @@ func LoadRecent(path string, limit int) ([]Line, error) {
 			count++
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		// Oversized historical lines should not blank the whole alerts panel.
-		if !errors.Is(err, bufio.ErrTooLong) {
-			return nil, fmt.Errorf("read alerts log %q: %w", path, err)
-		}
-	}
 
 	out := make([]Line, count)
 	start := 0
@@ -127,6 +144,37 @@ func LoadRecent(path string, limit int) ([]Line, error) {
 		out[i] = buf[(start+i)%limit]
 	}
 	return out, nil
+}
+
+// readAlertLine reads one newline-terminated record. If the record exceeds max
+// bytes it discards through the newline and reports skipped=true.
+func readAlertLine(r *bufio.Reader, max int) (line string, skipped bool, err error) {
+	var b strings.Builder
+	for {
+		fragment, isPrefix, readErr := r.ReadLine()
+		if readErr != nil && readErr != io.EOF {
+			return "", false, readErr
+		}
+		if b.Len()+len(fragment) > max {
+			for isPrefix {
+				_, isPrefix, readErr = r.ReadLine()
+				if readErr != nil && readErr != io.EOF {
+					return "", true, readErr
+				}
+				if readErr == io.EOF {
+					return "", true, io.EOF
+				}
+			}
+			return "", true, readErr
+		}
+		b.Write(fragment)
+		if !isPrefix {
+			return b.String(), false, readErr
+		}
+		if readErr == io.EOF {
+			return b.String(), false, io.EOF
+		}
+	}
 }
 
 // ValidateSafeIdentifier rejects characters that would break the alerts.log
@@ -165,8 +213,12 @@ func sanitizeReason(reason string) string {
 	collapsed = strings.ReplaceAll(collapsed, "\n", " ")
 	collapsed = strings.ReplaceAll(collapsed, "\r", " ")
 	collapsed = strings.TrimSpace(collapsed)
-	if len(collapsed) > maxReasonBytes {
-		return collapsed[:maxReasonBytes] + "…"
+	if len(collapsed) <= maxReasonBytes {
+		return collapsed
 	}
-	return collapsed
+	truncated := collapsed[:maxReasonBytes]
+	for len(truncated) > 0 && !utf8.ValidString(truncated) {
+		truncated = truncated[:len(truncated)-1]
+	}
+	return truncated + "…"
 }

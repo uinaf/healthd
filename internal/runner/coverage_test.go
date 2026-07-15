@@ -11,4 +11,7 @@ func TestAllPassed(t *testing.T) {
 	if AllPassed([]CheckResult{{Passed: true}, {Passed: false}}) {
 		t.Fatal("expected failed aggregate result")
 	}
+	if !AllPassed([]CheckResult{{Passed: true}, {Canceled: true, Passed: false, ExitCode: -1}}) {
+		t.Fatal("expected canceled checks to be ignored by AllPassed")
+	}
 }

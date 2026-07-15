@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/uinaf/healthd/internal/alertlog"
 )
@@ -180,6 +181,48 @@ func TestLoadRecentKeepsRollingWindow(t *testing.T) {
 	}
 	if alerts[0].CheckName != "c17" || alerts[2].CheckName != "c19" {
 		t.Fatalf("expected last three alerts, got %+v", alerts)
+	}
+}
+
+func TestLoadRecentSkipsOversizedLineAndContinues(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "alerts.log")
+	var b strings.Builder
+	b.WriteString("2026-02-27T08:00:00Z [crit] early (g) - one\n")
+	b.WriteString("2026-02-27T08:01:00Z [crit] huge (g) - ")
+	b.WriteString(strings.Repeat("x", 256*1024+10))
+	b.WriteString("\n")
+	b.WriteString("2026-02-27T08:02:00Z [recovered] late (g) - two\n")
+	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	alerts, err := alertlog.LoadRecent(path, 10)
+	if err != nil {
+		t.Fatalf("LoadRecent: %v", err)
+	}
+	if len(alerts) != 2 {
+		t.Fatalf("expected 2 alerts after skipping oversized line, got %+v", alerts)
+	}
+	if alerts[0].CheckName != "early" || alerts[1].CheckName != "late" {
+		t.Fatalf("unexpected alerts after oversized skip: %+v", alerts)
+	}
+}
+
+func TestFormatLineCapsReasonOnUTF8Boundary(t *testing.T) {
+	t.Parallel()
+
+	ts := time.Date(2026, 2, 27, 8, 37, 0, 0, time.UTC)
+	// Fill almost to the cap, then add a multi-byte rune that would be split.
+	prefix := strings.Repeat("a", 4*1024-1)
+	reason := prefix + "⌘extra"
+	line := alertlog.FormatLine(ts, "crit", "noisy", "host", reason)
+	if !utf8.ValidString(line) {
+		t.Fatalf("formatted line is invalid UTF-8: %q", line)
+	}
+	if !strings.HasSuffix(line, "…") {
+		t.Fatalf("expected truncation marker, got %q", line)
 	}
 }
 
