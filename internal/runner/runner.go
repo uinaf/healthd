@@ -16,6 +16,10 @@ import (
 	"github.com/uinaf/healthd/internal/config"
 )
 
+// maxCaptureBytes caps how much stdout/stderr is retained per check so a
+// runaway command cannot unbounded-grow the process heap.
+const maxCaptureBytes = 64 * 1024
+
 type CheckResult struct {
 	Name      string
 	Group     string
@@ -26,6 +30,7 @@ type CheckResult struct {
 	Duration  time.Duration
 	Passed    bool
 	TimedOut  bool
+	Canceled  bool
 	Reason    string
 	Timestamp time.Time
 }
@@ -62,6 +67,9 @@ func FilterChecks(checks []config.CheckConfig, only []string, groups []string) [
 
 func AllPassed(results []CheckResult) bool {
 	for _, result := range results {
+		if result.Canceled {
+			continue
+		}
 		if !result.Passed {
 			return false
 		}
@@ -93,20 +101,31 @@ func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout s
 	cmd := exec.CommandContext(ctx, "sh", "-c", check.Command)
 	cmd.Env = mergedEnv(check.Env)
 
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	stdout := newLimitedBuffer(maxCaptureBytes)
+	stderr := newLimitedBuffer(maxCaptureBytes)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 
 	runErr := cmd.Run()
 	result.Stdout = stdout.String()
 	result.Stderr = stderr.String()
 	result.Duration = time.Since(start)
 
-	if ctx.Err() == context.DeadlineExceeded {
+	if ctx.Err() == context.DeadlineExceeded && parent.Err() == nil {
+		// Check-local timeout only when the parent loop context is still live.
 		result.TimedOut = true
 		result.ExitCode = -1
 		result.Reason = "timed out"
+		return result
+	}
+
+	// Only mark canceled when the command was actually interrupted. A process
+	// that already exited with a normal status must keep that result even if
+	// the parent context is shutting down.
+	if isContextInterrupted(runErr, ctx, parent) {
+		result.Canceled = true
+		result.ExitCode = -1
+		result.Reason = "canceled"
 		return result
 	}
 
@@ -119,7 +138,37 @@ func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout s
 		result.Reason = runErr.Error()
 	}
 
+	// Truncated stdout is only a failure when expectations depend on stdout.
+	// Exit-code-only checks keep their result; capture is still capped for memory.
+	if stdout.Truncated() && expectsStdout(check.Expect) {
+		result.Passed = false
+		switch {
+		case result.Reason == "" || result.Reason == "ok":
+			result.Reason = "output truncated"
+		case strings.Contains(result.Reason, "truncated"):
+		default:
+			result.Reason += " (output truncated)"
+		}
+	}
+
 	return result
+}
+
+// isContextInterrupted reports whether the command failed because the run
+// context was canceled/deadline-killed, rather than a normal process exit.
+func isContextInterrupted(runErr error, ctx, parent context.Context) bool {
+	if runErr == nil {
+		return false
+	}
+	if ctx.Err() == nil && parent.Err() == nil {
+		return false
+	}
+	var exitErr *exec.ExitError
+	if errors.As(runErr, &exitErr) && exitErr.ExitCode() >= 0 {
+		// Process called exit(N) — keep that outcome even if shutdown raced in.
+		return false
+	}
+	return true
 }
 
 func resolveTimeout(checkTimeout string, defaultTimeout string) (time.Duration, error) {
@@ -207,7 +256,8 @@ func evaluateExpectations(expect config.ExpectConfig, stdout string, exitCode in
 	if expect.Min != nil || expect.Max != nil {
 		value, err := strconv.ParseFloat(trimmed, 64)
 		if err != nil {
-			return false, fmt.Sprintf("expected numeric output, got %q", trimmed)
+			// Do not echo stdout into Reason — it flows to alerts.log and notifiers.
+			return false, "expected numeric output"
 		}
 		if expect.Min != nil && value < *expect.Min {
 			return false, fmt.Sprintf("expected output >= %v", *expect.Min)
@@ -231,8 +281,11 @@ func evaluateExpectations(expect config.ExpectConfig, stdout string, exitCode in
 }
 
 func hasExpectation(expect config.ExpectConfig) bool {
-	return expect.ExitCode != nil ||
-		expect.Equals != nil ||
+	return expect.ExitCode != nil || expectsStdout(expect)
+}
+
+func expectsStdout(expect config.ExpectConfig) bool {
+	return expect.Equals != nil ||
 		expect.Not != nil ||
 		expect.Contains != nil ||
 		expect.NotContains != nil ||
@@ -255,4 +308,42 @@ func toSet(values []string) map[string]struct{} {
 	}
 
 	return set
+}
+
+type limitedBuffer struct {
+	buf       bytes.Buffer
+	limit     int
+	truncated bool
+}
+
+func newLimitedBuffer(limit int) *limitedBuffer {
+	return &limitedBuffer{limit: limit}
+}
+
+func (l *limitedBuffer) Write(p []byte) (int, error) {
+	if l.limit <= 0 {
+		l.truncated = true
+		return len(p), nil
+	}
+	remaining := l.limit - l.buf.Len()
+	if remaining <= 0 {
+		l.truncated = true
+		return len(p), nil
+	}
+	if len(p) > remaining {
+		if _, err := l.buf.Write(p[:remaining]); err != nil {
+			return 0, err
+		}
+		l.truncated = true
+		return len(p), nil
+	}
+	return l.buf.Write(p)
+}
+
+func (l *limitedBuffer) String() string {
+	return l.buf.String()
+}
+
+func (l *limitedBuffer) Truncated() bool {
+	return l.truncated
 }

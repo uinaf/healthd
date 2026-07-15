@@ -25,7 +25,7 @@ graph LR
 | **cmd** | Cobra CLI: check, status, run, init, validate, notify |
 | **runner** | Execute checks, filter, collect results |
 | **loop** | Continuous run loop, fail/recover transition tracking |
-| **notify** | Alert backends (ntfy, command), cooldown logic |
+| **notify** | Alert backends (ntfy, webhook, command), cooldown logic |
 | **alertlog** | Append-only writer for `~/.local/state/healthd/alerts.log` (read by TUI) |
 | **tui** | Bubbletea status display, watch mode |
 | **config** | TOML parsing, validation |
@@ -48,5 +48,5 @@ stateDiagram-v2
 | Shell-exec checks | Run any command | Maximum flexibility, no custom check API |
 | Detect only (v1) | No auto-remediation | Keep it simple, alert humans |
 | Transition alerts | Only on state change | No alert spam |
-| Cooldown per backend | Configurable per notifier | Different urgency per channel |
+| Global notify cooldown | Shared quiet window per check | Suppresses rapid re-alerts across all backends |
 | Status TUI bypasses bubbletea in non-watch | Direct View() render | Works without TTY (CI, pipes) |

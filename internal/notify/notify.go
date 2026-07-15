@@ -60,15 +60,19 @@ func NewTracker(cooldown time.Duration) *Tracker {
 }
 
 func (t *Tracker) EventFor(result runner.CheckResult) (Event, bool) {
-	current := stateForResult(result)
+	if result.Canceled {
+		return Event{}, false
+	}
+	current := StateForResult(result)
 	previous, seen := t.states[result.Name]
-	t.states[result.Name] = current
 
 	if !seen {
 		if current == StateOK {
+			// Record baseline OK without alerting.
+			t.states[result.Name] = current
 			return Event{}, false
 		}
-		return t.emit(result, current, "", current)
+		return t.emitAndCommit(result, current, "", current)
 	}
 
 	if previous == current {
@@ -80,7 +84,18 @@ func (t *Tracker) EventFor(result runner.CheckResult) (Event, bool) {
 		eventState = StateRecovered
 	}
 
-	return t.emit(result, current, previous, eventState)
+	return t.emitAndCommit(result, current, previous, eventState)
+}
+
+// emitAndCommit only advances tracked state when an alert is actually emitted.
+// Cooldown-suppressed transitions keep the previous state so a later tick can
+// still deliver the pending fail/recover alert after the quiet window.
+func (t *Tracker) emitAndCommit(result runner.CheckResult, current State, previous State, eventState State) (Event, bool) {
+	event, ok := t.emit(result, current, previous, eventState)
+	if ok {
+		t.states[result.Name] = current
+	}
+	return event, ok
 }
 
 func (t *Tracker) emit(result runner.CheckResult, current State, previous State, eventState State) (Event, bool) {
@@ -313,7 +328,14 @@ func (n *ntfyNotifier) Notify(ctx context.Context, event Event) error {
 	return nil
 }
 
-func stateForResult(result runner.CheckResult) State {
+// StateForResult maps a check result to ok/warn/crit for alerts and summaries.
+// Failures with a non-zero exit or timeout are critical; expectation-only
+// failures that still exited 0 are warnings. Canceled results are not health
+// failures — callers should skip them before classifying.
+func StateForResult(result runner.CheckResult) State {
+	if result.Canceled {
+		return StateOK
+	}
 	if result.Passed {
 		return StateOK
 	}

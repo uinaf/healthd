@@ -156,14 +156,26 @@ func TestCommandWebhookAndNtfyNotifyBranches(t *testing.T) {
 func TestStateForResultWarnBranch(t *testing.T) {
 	t.Parallel()
 
-	if got := stateForResult(runner.CheckResult{Passed: true}); got != StateOK {
+	if got := StateForResult(runner.CheckResult{Passed: true}); got != StateOK {
 		t.Fatalf("expected ok, got %q", got)
 	}
-	if got := stateForResult(runner.CheckResult{Passed: false, ExitCode: 1}); got != StateCrit {
+	if got := StateForResult(runner.CheckResult{Passed: false, ExitCode: 1}); got != StateCrit {
 		t.Fatalf("expected crit, got %q", got)
 	}
-	if got := stateForResult(runner.CheckResult{Passed: false, ExitCode: 0}); got != StateWarn {
+	if got := StateForResult(runner.CheckResult{Passed: false, ExitCode: 0}); got != StateWarn {
 		t.Fatalf("expected warn, got %q", got)
+	}
+	if got := StateForResult(runner.CheckResult{Canceled: true, ExitCode: -1}); got != StateOK {
+		t.Fatalf("expected canceled to be non-crit, got %q", got)
+	}
+}
+
+func TestTrackerIgnoresCanceledResults(t *testing.T) {
+	t.Parallel()
+
+	tracker := NewTracker(0)
+	if _, ok := tracker.EventFor(runner.CheckResult{Name: "x", Canceled: true, ExitCode: -1}); ok {
+		t.Fatal("expected canceled result to produce no event")
 	}
 }
 

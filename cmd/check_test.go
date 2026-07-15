@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uinaf/healthd/internal/runner"
 )
 
 type checkCommandResult struct {
@@ -100,7 +101,7 @@ command = "false"
 				"passed":   1,
 				"failed":   1,
 				"warning":  0,
-				"critical": 0,
+				"critical": 1,
 			}, summary)
 
 			var checks []map[string]json.RawMessage
@@ -114,6 +115,7 @@ command = "false"
 				"reason":    {},
 				"exit_code": {},
 				"timed_out": {},
+				"canceled":  {},
 				"timestamp": {},
 			}
 			for i, check := range checks {
@@ -125,6 +127,56 @@ command = "false"
 			}
 		})
 	}
+}
+
+func TestCheckJSONWarningSummary(t *testing.T) {
+	t.Parallel()
+
+	configPath := writeTestConfig(t, `
+interval = "1s"
+timeout = "1s"
+
+[[check]]
+name = "warn-check"
+group = "host"
+command = "printf 5"
+
+[check.expect]
+max = 1.0
+`)
+
+	result := executeCheckCommand(t, "check", "--config", configPath, "--json")
+	require.Error(t, result.err)
+
+	var envelope map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(result.stdout)), &envelope))
+
+	var summary map[string]int
+	require.NoError(t, json.Unmarshal(envelope["summary"], &summary))
+	require.Equal(t, map[string]int{
+		"total":    1,
+		"passed":   0,
+		"failed":   1,
+		"warning":  1,
+		"critical": 0,
+	}, summary)
+}
+
+func TestBuildSummarySkipsCanceled(t *testing.T) {
+	t.Parallel()
+
+	summary := buildSummary([]runner.CheckResult{
+		{Name: "ok", Passed: true},
+		{Name: "canceled", Canceled: true, ExitCode: -1, Passed: false},
+		{Name: "fail", Passed: false, ExitCode: 1},
+	})
+	require.Equal(t, reportSummary{
+		Total:    3,
+		Passed:   1,
+		Failed:   1,
+		Warning:  0,
+		Critical: 1,
+	}, summary)
 }
 
 func TestCheckHumanOutputGrouped(t *testing.T) {

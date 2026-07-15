@@ -82,10 +82,30 @@ timeout = "5s"
 
 ## Testing
 
-Required CI checks:
+Required local/CI gate:
+
+```bash
+go run ./cmd/verify # fmt + lint + test + coverage thresholds
+```
+
+Fast path while iterating:
 
 ```bash
 go test ./...
 go test ./integration/... -v
 go test ./e2e/cli/... -v
 ```
+
+Enable the pre-push verifier once per clone:
+
+```bash
+git config core.hooksPath .git-hooks
+```
+
+## Architecture
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for components, check lifecycle, and design decisions.
+
+## Examples
+
+- [`examples/current-host.toml`](examples/current-host.toml) — multi-check host profile (disk/load/memory/API) with webhook notify

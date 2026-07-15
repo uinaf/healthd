@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/uinaf/healthd/internal/alertlog"
 )
 
 const (
@@ -25,13 +26,12 @@ type Config struct {
 }
 
 type CheckConfig struct {
-	Name     string            `toml:"name"`
-	Command  string            `toml:"command"`
-	Group    string            `toml:"group"`
-	Interval string            `toml:"interval"`
-	Timeout  string            `toml:"timeout"`
-	Env      map[string]string `toml:"env"`
-	Expect   ExpectConfig      `toml:"expect"`
+	Name    string            `toml:"name"`
+	Command string            `toml:"command"`
+	Group   string            `toml:"group"`
+	Timeout string            `toml:"timeout"`
+	Env     map[string]string `toml:"env"`
+	Expect  ExpectConfig      `toml:"expect"`
 }
 
 type ExpectConfig struct {
@@ -118,21 +118,16 @@ func (c Config) Validate() error {
 		if strings.TrimSpace(check.Name) == "" {
 			return fmt.Errorf("%s.name is required", prefix)
 		}
-		if err := validateAlertSafeIdentifier(prefix+".name", check.Name); err != nil {
+		if err := alertlog.ValidateSafeIdentifier(prefix+".name", check.Name); err != nil {
 			return err
 		}
 		if check.Group != "" {
-			if err := validateAlertSafeIdentifier(prefix+".group", check.Group); err != nil {
+			if err := alertlog.ValidateSafeIdentifier(prefix+".group", check.Group); err != nil {
 				return err
 			}
 		}
 		if strings.TrimSpace(check.Command) == "" {
 			return fmt.Errorf("%s.command is required", prefix)
-		}
-		if check.Interval != "" {
-			if err := validateDurationField(prefix+".interval", check.Interval); err != nil {
-				return err
-			}
 		}
 		if check.Timeout != "" {
 			if err := validateDurationField(prefix+".timeout", check.Timeout); err != nil {
@@ -161,23 +156,6 @@ func validateDurationField(name, value string) error {
 	}
 	if d <= 0 {
 		return fmt.Errorf("%s must be greater than zero", name)
-	}
-	return nil
-}
-
-// validateAlertSafeIdentifier rejects characters that would break the TUI's
-// alerts.log parser (see internal/tui/alerts.go alertLinePattern). The writer
-// in internal/alertlog formats lines as `time [state] checkName (group) - reason`,
-// so check names and groups must not contain the bracket/paren delimiters or
-// embedded newlines or transitions silently disappear from the status UI.
-func validateAlertSafeIdentifier(field, value string) error {
-	for _, r := range value {
-		switch r {
-		case '(', ')', '[', ']':
-			return fmt.Errorf("%s %q must not contain '%c' (would break alerts.log parsing)", field, value, r)
-		case '\n', '\r':
-			return fmt.Errorf("%s %q must not contain newlines", field, value)
-		}
 	}
 	return nil
 }

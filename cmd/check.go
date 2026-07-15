@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/uinaf/healthd/internal/config"
+	"github.com/uinaf/healthd/internal/notify"
 	"github.com/uinaf/healthd/internal/runner"
 )
 
@@ -36,6 +37,7 @@ type checkReportItem struct {
 	Reason    string `json:"reason"`
 	ExitCode  int    `json:"exit_code"`
 	TimedOut  bool   `json:"timed_out"`
+	Canceled  bool   `json:"canceled"`
 	Timestamp string `json:"timestamp"`
 }
 
@@ -139,12 +141,24 @@ func writeHumanReport(cmd *cobra.Command, results []runner.CheckResult) {
 
 func buildSummary(results []runner.CheckResult) reportSummary {
 	summary := reportSummary{Total: len(results)}
+	canceled := 0
 	for _, result := range results {
+		if result.Canceled {
+			canceled++
+			continue
+		}
 		if result.Passed {
 			summary.Passed++
+			continue
+		}
+		switch notify.StateForResult(result) {
+		case notify.StateWarn:
+			summary.Warning++
+		case notify.StateCrit:
+			summary.Critical++
 		}
 	}
-	summary.Failed = summary.Total - summary.Passed
+	summary.Failed = summary.Total - summary.Passed - canceled
 	return summary
 }
 
@@ -178,6 +192,7 @@ func writeJSONReport(cmd *cobra.Command, results []runner.CheckResult) error {
 			Reason:    result.Reason,
 			ExitCode:  result.ExitCode,
 			TimedOut:  result.TimedOut,
+			Canceled:  result.Canceled,
 			Timestamp: result.Timestamp.UTC().Format(time.RFC3339Nano),
 		})
 	}
