@@ -1,3 +1,5 @@
+![healthd — pluggable host health check daemon in Go.](https://uinaf.dev/og/banner/healthd.png)
+
 # healthd
 
 `healthd` is a lightweight host health daemon for one machine.
