@@ -2,24 +2,7 @@
 
 # healthd
 
-`healthd` is a lightweight host health daemon for one machine.
-
-It exists to replace fragile cron-only checks with a single, reliable loop that:
-- runs checks on a schedule
-- returns machine-readable status (`--json`)
-- sends alerts on fail/recover transitions
-
-## Motivation
-
-Most setups end up with scattered shell scripts, ad-hoc cron jobs, and noisy alerts.
-`healthd` gives you one place to define checks, one output format, and pluggable notifications.
-
-## Good use cases
-
-- Monitor local daemons/services (trading bots, workers, sidecars)
-- Catch machine drift (disk, network, gateway, Docker/Colima)
-- Replace many small cron probes with one structured checker
-- Build automations on top of JSON output
+Lightweight host health daemon for one machine: scheduled checks, machine-readable status, and alerts on fail/recover transitions.
 
 ## Install
 
@@ -42,29 +25,18 @@ healthd --version
 ## Quickstart
 
 ```bash
-# 1) create starter config
 healthd init
-
-# 2) validate config
 healthd validate --config ~/.config/healthd/config.toml
-
-# 3) run checks once
 healthd check --config ~/.config/healthd/config.toml
-
-# 4) view status in terminal UI
 healthd status --config ~/.config/healthd/config.toml
-
-# 5) live-updating dashboard
 healthd status --config ~/.config/healthd/config.toml --watch
-
-# 6) test notifier
 healthd notify test --config ~/.config/healthd/config.toml
-
-# 7) run continuously (typically supervised by process-compose / systemd / launchd)
 healthd run --config ~/.config/healthd/config.toml
 ```
 
-## Example notifier config
+`healthd run` is meant to be supervised (process-compose, systemd, launchd).
+
+## Example notify config
 
 ```toml
 [notify]
@@ -82,32 +54,15 @@ command = "logger -t healthd-alert"
 timeout = "5s"
 ```
 
-## Testing
+More complete host profiles: [examples/current-host.toml](examples/current-host.toml).
 
-Required local/CI gate:
+## Docs
 
-```bash
-go run ./cmd/verify # fmt + lint + test + coverage thresholds
-```
+- [Architecture](docs/ARCHITECTURE.md) — components, lifecycle, design choices
+- [Contributing](CONTRIBUTING.md) — setup, verify, pull requests
+- [Releases](docs/RELEASES.md) — Conventional Commits publish path
+- [Security](SECURITY.md) — private vulnerability reporting
 
-Fast path while iterating:
+## License
 
-```bash
-go test ./...
-go test ./integration/... -v
-go test ./e2e/cli/... -v
-```
-
-Enable the pre-push verifier once per clone:
-
-```bash
-git config core.hooksPath .git-hooks
-```
-
-## Architecture
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for components, check lifecycle, and design decisions.
-
-## Examples
-
-- [`examples/current-host.toml`](examples/current-host.toml) — multi-check host profile (disk/load/memory/API) with webhook notify
+[MIT](LICENSE)

@@ -14,7 +14,7 @@
 - [ ] Pre-push hook is active (`git config core.hooksPath .git-hooks`)
 - [ ] New behavior covered by tests (unit, integration, or e2e)
 - [ ] Manual smoke against `healthd check` / `healthd run` / `healthd status` if user-facing
-- [ ] Docs updated (AGENTS.md, README.md, ARCHITECTURE.md, operator skill) if behavior or commands changed
+- [ ] Docs updated (`AGENTS.md`, `README.md`, `docs/`, operator skill) if behavior or commands changed
 
 ## Risks
 

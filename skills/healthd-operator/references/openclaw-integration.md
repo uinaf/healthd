@@ -20,12 +20,14 @@ Ask for confirmation before changing supervisor state or replacing existing sche
 ## 2) Build/install binary
 
 ```bash
-cd ~/projects/healthd
+# From a healthd source checkout:
 go build -o ./bin/healthd .
 ./bin/healthd --help
 ```
 
-Optional user-level install:
+Preferred host install: `brew install uinaf/tap/healthd`.
+
+Optional Go install into `GOBIN`/`GOPATH/bin`:
 
 ```bash
 go install .

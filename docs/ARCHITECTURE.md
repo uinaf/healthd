@@ -1,36 +1,39 @@
 # Architecture
 
-Local host health-check daemon. Runs checks, tracks state, sends alerts on transitions.
+Local host health-check daemon. Runs checks, tracks state, and alerts on fail/recover transitions.
 
-## System Context
+## System context
 
 ```mermaid
 graph LR
-  PC[process-compose] -->|invokes healthd run| Loop
-  Loop -->|shell exec| Checks[Health Checks]
-  Loop -->|on transition| Notify[Notifiers]
+  PC[supervisor] -->|healthd run| Loop
+  Loop -->|shell exec| Checks[checks]
+  Loop -->|on transition| Notify[notifiers]
   Loop -->|on transition| Alerts[(alerts.log)]
   Notify --> Ntfy[(ntfy)]
+  Notify --> Webhook[(webhook)]
   Notify --> Cmd[(command)]
   CLI[CLI] -->|one-shot| Checks
-  CLI -->|TUI| Status[Status View]
+  CLI -->|TUI| Status[status]
   Status --> Alerts
-  Loop & CLI -->|read| Config[(~/.config/config.toml)]
+  Loop & CLI -->|read| Config[(config.toml)]
 ```
 
-## Components
+Default config: `~/.config/healthd/config.toml`. Default alerts log: `~/.local/state/healthd/alerts.log`.
 
-| Component | Responsibility |
-|-----------|---------------|
-| **cmd** | Cobra CLI: check, status, run, init, validate, notify |
-| **runner** | Execute checks, filter, collect results |
-| **loop** | Continuous run loop, fail/recover transition tracking |
-| **notify** | Alert backends (ntfy, webhook, command), cooldown logic |
-| **alertlog** | Append-only writer for `~/.local/state/healthd/alerts.log` (read by TUI) |
-| **tui** | Bubbletea status display, watch mode |
-| **config** | TOML parsing, validation |
+## Packages
 
-## Check Lifecycle
+| Package | Responsibility |
+|---|---|
+| `cmd/` | Cobra CLI: `check`, `status`, `run`, `init`, `validate`, `notify` |
+| `internal/runner` | Execute checks, filter, collect results |
+| `internal/loop` | Continuous loop and fail/recover transition tracking |
+| `internal/notify` | ntfy, webhook, and command backends plus cooldown |
+| `internal/alertlog` | Append-only alerts log used by the TUI |
+| `internal/tui` | Bubbletea status display and watch mode |
+| `internal/config` | TOML parse and validation |
+
+## Check lifecycle
 
 ```mermaid
 stateDiagram-v2
@@ -41,12 +44,12 @@ stateDiagram-v2
   Failing --> Failing: still failing (cooldown suppresses)
 ```
 
-## Key Design Decisions
+## Design decisions
 
 | Decision | Choice | Why |
-|----------|--------|-----|
-| Shell-exec checks | Run any command | Maximum flexibility, no custom check API |
-| Detect only (v1) | No auto-remediation | Keep it simple, alert humans |
-| Transition alerts | Only on state change | No alert spam |
-| Global notify cooldown | Shared quiet window per check | Suppresses rapid re-alerts across all backends |
-| Status TUI bypasses bubbletea in non-watch | Direct View() render | Works without TTY (CI, pipes) |
+|---|---|---|
+| Check model | Shell-exec any command | Flexible without a custom check plugin API |
+| Remediation | Detect/report only | Keep the daemon simple; humans or supervisors act |
+| Alerting | Transition-only | Avoid spam while a check stays failed |
+| Notify cooldown | Shared quiet window per check | Suppress rapid re-alerts across backends |
+| Non-watch status | Render `View()` directly | Works without a TTY (CI, pipes) |
