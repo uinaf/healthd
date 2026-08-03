@@ -65,8 +65,8 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
     commit_author:
-      name: uinaf-releaser[bot]
-      email: 312581908+uinaf-releaser[bot]@users.noreply.github.com
+      name: "{{ .Env.RELEASE_BOT_NAME }}"
+      email: "{{ .Env.RELEASE_BOT_EMAIL }}"
     commit_msg_template: "healthd: bump to {{ .Tag }}"
     homepage: "https://github.com/uinaf/healthd"
     description: "Pluggable local host health-check daemon"

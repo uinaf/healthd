@@ -91,6 +91,21 @@ jobs:
           permission-issues: write
           permission-pull-requests: write
 
+      # GitHub links bot commits when the noreply email uses `{user-id}+{slug}[bot]@…`.
+      - name: Resolve release bot identity
+        id: release-bot-identity
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+          APP_SLUG: ${{ steps.release-bot.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+          if [[ ! "$user_id" =~ ^[0-9]+$ ]]; then
+            echo "failed to resolve numeric bot user id for ${APP_SLUG}[bot]" >&2
+            exit 1
+          fi
+          echo "user-id=${user_id}" >> "$GITHUB_OUTPUT"
+
       - name: Read Go version from .tool-versions
         id: go-version
         shell: bash
@@ -123,9 +138,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.release-bot.outputs.token }}
           GIT_AUTHOR_NAME: ${{ steps.release-bot.outputs.app-slug }}[bot]
-          GIT_AUTHOR_EMAIL: 312581908+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
+          GIT_AUTHOR_EMAIL: ${{ steps.release-bot-identity.outputs.user-id }}+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
           GIT_COMMITTER_NAME: ${{ steps.release-bot.outputs.app-slug }}[bot]
-          GIT_COMMITTER_EMAIL: 312581908+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
+          GIT_COMMITTER_EMAIL: ${{ steps.release-bot-identity.outputs.user-id }}+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
 
       # semantic-release creates the tag via the GitHub Release API; pull all
       # tags so we can detect one at HEAD (whether just-created or already
@@ -164,6 +179,8 @@ jobs:
           GITHUB_TOKEN: ${{ steps.release-bot.outputs.token }}
           HOMEBREW_TAP_TOKEN: ${{ steps.release-bot.outputs.token }}
           GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
+          RELEASE_BOT_NAME: ${{ steps.release-bot.outputs.app-slug }}[bot]
+          RELEASE_BOT_EMAIL: ${{ steps.release-bot-identity.outputs.user-id }}+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
 
       - name: Attest build provenance
         if: steps.tag.outputs.present == 'true'
