@@ -228,4 +228,13 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.release-bot.outputs.token }}
           RELEASE_TAG: ${{ steps.tag.outputs.tag }}
-        run: gh release verify "$RELEASE_TAG"
+        run: |
+          for attempt in {1..12}; do
+            if gh release verify "$RELEASE_TAG"; then
+              exit 0
+            fi
+            if (( attempt == 12 )); then
+              exit 1
+            fi
+            sleep 5
+          done
