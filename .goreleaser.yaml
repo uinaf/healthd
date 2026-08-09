@@ -52,8 +52,13 @@ release:
   github:
     owner: uinaf
     name: healthd
-  # semantic-release creates the release first; goreleaser uploads artifacts to it.
-  mode: append
+  # semantic-release owns the notes and creates a mutable draft. GoReleaser
+  # adopts that draft, replaces retry artifacts, and leaves final publication
+  # to the workflow after verification succeeds.
+  draft: true
+  use_existing_draft: true
+  mode: keep-existing
+  replace_existing_artifacts: true
   prerelease: auto
 
 brews:

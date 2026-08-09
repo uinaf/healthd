@@ -126,9 +126,9 @@ jobs:
           cache-dependency-path: |
             **/go.sum
 
-      # Decides next version from Conventional Commits, creates tag + GitHub
-      # Release with notes. Outputs `new_release_published` and
-      # `new_release_version` for downstream steps.
+      # Decides the next version from Conventional Commits and creates the tag
+      # plus a mutable draft release. The workflow publishes that draft only
+      # after GoReleaser and provenance verification finish successfully.
       - name: Run semantic-release
         id: release
         uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
@@ -151,9 +151,9 @@ jobs:
       # Gate GoReleaser on "is there a tag at HEAD?" rather than
       # `steps.release.outputs.new_release_published`. Re-running the job
       # after a partial failure (semantic-release succeeded, GoReleaser
-      # failed mid-flight) still publishes binaries to the existing GitHub
-      # Release because the tag is now there. Without this, the second run
-      # would short-circuit and leave the release without binaries.
+      # failed mid-flight) still resumes the existing mutable draft because
+      # the tag is now there. A later state check skips mutation entirely once
+      # that release has already been published.
       - name: Detect tag at HEAD
         id: tag
         shell: bash
@@ -168,8 +168,19 @@ jobs:
             echo "no tag at HEAD — skipping GoReleaser"
           fi
 
-      - name: Run GoReleaser
+      - name: Inspect GitHub Release state
         if: steps.tag.outputs.present == 'true'
+        id: release-state
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          is_draft="$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)"
+          echo "published=$([[ "$is_draft" == "false" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Run GoReleaser
+        if: steps.tag.outputs.present == 'true' && steps.release-state.outputs.published != 'true'
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           distribution: goreleaser
@@ -182,8 +193,39 @@ jobs:
           RELEASE_BOT_NAME: ${{ steps.release-bot.outputs.app-slug }}[bot]
           RELEASE_BOT_EMAIL: ${{ steps.release-bot-identity.outputs.user-id }}+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
 
+      - name: Verify draft artifacts
+        if: steps.tag.outputs.present == 'true' && steps.release-state.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          (cd dist && shasum -a 256 -c checksums.txt)
+          asset_count="$(
+            gh release view "$RELEASE_TAG" --json assets \
+              --jq '[.assets[].name | select(test("^(healthd_v[0-9]+\\.[0-9]+\\.[0-9]+_darwin_(arm64|amd64)\\.tar\\.gz|checksums\\.txt)$"))] | length'
+          )"
+          if [[ "$asset_count" != "3" ]]; then
+            echo "expected two darwin archives and checksums.txt, found $asset_count matching assets" >&2
+            exit 1
+          fi
+
       - name: Attest build provenance
-        if: steps.tag.outputs.present == 'true'
+        if: steps.tag.outputs.present == 'true' && steps.release-state.outputs.published != 'true'
         uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
         with:
           subject-path: "dist/healthd_*.tar.gz"
+
+      - name: Publish verified draft
+        if: steps.tag.outputs.present == 'true' && steps.release-state.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        run: gh release edit "$RELEASE_TAG" --draft=false
+
+      - name: Verify immutable release
+        if: steps.tag.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        run: gh release verify "$RELEASE_TAG"
