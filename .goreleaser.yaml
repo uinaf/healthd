@@ -63,16 +63,12 @@ release:
 
 brews:
   - name: healthd
+    skip_upload: true
     repository:
       owner: uinaf
       name: homebrew-tap
       branch: main
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
-    commit_author:
-      name: "{{ .Env.RELEASE_BOT_NAME }}"
-      email: "{{ .Env.RELEASE_BOT_EMAIL }}"
-    commit_msg_template: "healthd: bump to {{ .Tag }}"
     homepage: "https://github.com/uinaf/healthd"
     description: "Pluggable local host health-check daemon"
     license: "MIT"

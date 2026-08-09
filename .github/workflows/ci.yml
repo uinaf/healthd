@@ -188,10 +188,39 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ steps.release-bot.outputs.token }}
-          HOMEBREW_TAP_TOKEN: ${{ steps.release-bot.outputs.token }}
           GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
-          RELEASE_BOT_NAME: ${{ steps.release-bot.outputs.app-slug }}[bot]
-          RELEASE_BOT_EMAIL: ${{ steps.release-bot-identity.outputs.user-id }}+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
+
+      - name: Check out Homebrew tap
+        if: steps.tag.outputs.present == 'true' && steps.release-state.outputs.published != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: uinaf/homebrew-tap
+          token: ${{ steps.release-bot.outputs.token }}
+          path: homebrew-tap
+          ref: main
+          persist-credentials: false
+
+      - name: Stage Homebrew formula
+        if: steps.tag.outputs.present == 'true' && steps.release-state.outputs.published != 'true'
+        env:
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cp dist/homebrew/Formula/healthd.rb homebrew-tap/Formula/healthd.rb
+          grep -F "$RELEASE_TAG" homebrew-tap/Formula/healthd.rb
+          git -C homebrew-tap diff --check
+
+      - name: Commit Homebrew formula
+        if: steps.tag.outputs.present == 'true' && steps.release-state.outputs.published != 'true'
+        uses: planetscale/ghcommit-action@a6b150b81dca5dd027baa898604418eec9e11465 # v0.2.22
+        with:
+          commit_message: "healthd ${{ steps.tag.outputs.tag }}"
+          repo: uinaf/homebrew-tap
+          branch: main
+          file_pattern: Formula/healthd.rb
+          repository: homebrew-tap
+        env:
+          GITHUB_TOKEN: ${{ steps.release-bot.outputs.token }}
 
       - name: Verify draft artifacts
         if: steps.tag.outputs.present == 'true' && steps.release-state.outputs.published != 'true'
