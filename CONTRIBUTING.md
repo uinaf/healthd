@@ -30,7 +30,7 @@ go test ./e2e/cli/... -v
 ## Pull Requests
 
 - Keep changes focused on one concern
-- Use Conventional Commits (`feat:`, `fix:`, `docs:`, …) — they drive releases
+- Use Conventional Commits (`feat:`, `fix:`, `docs:`, …); they drive releases
 - Fill the pull request template and include validation evidence
 - Update docs when behavior or commands change
 - Keep vulnerability reports out of public issues; use [Security](https://github.com/uinaf/healthd/security/policy)

@@ -1,6 +1,6 @@
 ![healthd — pluggable host health check daemon in Go.](https://uinaf.dev/og/banner/healthd.png)
 
-# healthd
+# uinaf/healthd
 
 Lightweight host health daemon for one machine: scheduled checks, machine-readable status, and alerts on fail/recover transitions.
 
@@ -58,10 +58,10 @@ More complete host profiles: [examples/current-host.toml](examples/current-host.
 
 ## Docs
 
-- [Architecture](docs/ARCHITECTURE.md) — components, lifecycle, design choices
-- [Contributing](CONTRIBUTING.md) — setup, verify, pull requests
-- [Releases](docs/RELEASES.md) — Conventional Commits publish path
-- [Security](https://github.com/uinaf/healthd/security/policy) — private vulnerability reporting
+- [Architecture](docs/ARCHITECTURE.md): components, lifecycle, design choices
+- [Contributing](CONTRIBUTING.md): setup, verify, pull requests
+- [Releases](docs/RELEASES.md): Conventional Commits publish path
+- [Security](https://github.com/uinaf/healthd/security/policy): private vulnerability reporting
 
 ## License
 

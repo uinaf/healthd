@@ -1,6 +1,6 @@
 ---
 name: healthd-operator
-description: Operate healthd safely on a local host: detect environment, install/build binary, bootstrap config, validate and run one-shot checks, test notifications, inspect alert history. Use when asked to deploy healthd, troubleshoot health checks, migrate from cron, or verify alert delivery. Daemon lifecycle (start/stop/restart) is owned by an external supervisor (process-compose, systemd, launchd) — this skill drives healthd directly, not the supervisor.
+description: Operate healthd safely on a local host: detect environment, install/build binary, bootstrap config, validate and run one-shot checks, test notifications, inspect alert history. Use when asked to deploy healthd, troubleshoot health checks, migrate from cron, or verify alert delivery. Daemon lifecycle (start/stop/restart) is owned by an external supervisor (process-compose, systemd, launchd); this skill drives healthd directly, not the supervisor.
 homepage: https://github.com/uinaf/healthd
 metadata:
   {
@@ -53,7 +53,7 @@ Use this skill for practical host operations. Prefer reversible steps and show c
    - Add an `ntfy` backend topic in config if none exists.
    - Run `healthd notify test --config <path> --backend <name-or-type>`.
 6. **Run continuously**
-   - Foreground (debugging): `healthd run --config <path>` — Ctrl-C to stop.
+   - Foreground (debugging): `healthd run --config <path>`; Ctrl-C to stop.
    - Production: configure your supervisor (process-compose, systemd unit, launchd plist) to invoke the same command. Lifecycle (start/stop/restart/logs) is the supervisor's responsibility, not healthd's.
 7. **Inspect history**
    - Recent transitions: `tail -n 20 ~/.local/state/healthd/alerts.log`
@@ -74,7 +74,7 @@ Use this skill for practical host operations. Prefer reversible steps and show c
 
 - Keep a backup before risky edits: `cp <path> <path>.bak`.
 - To rollback config quickly: `cp <path>.bak <path>`, then `healthd validate --config <path>`.
-- If supervised daemon behavior regresses, ask the supervisor to stop healthd, restore prior config or scheduler, and only then restart — confirm exact commands before running.
+- If supervised daemon behavior regresses, ask the supervisor to stop healthd, restore prior config or scheduler, and only then restart; confirm exact commands before running.
 
 ## References
 
