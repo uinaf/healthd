@@ -40,5 +40,5 @@ git config core.hooksPath .git-hooks
 - [Architecture](docs/ARCHITECTURE.md) — components and check lifecycle
 - [Contributing](CONTRIBUTING.md) — setup, verify, pull requests
 - [Releases](docs/RELEASES.md) — Conventional Commits publish path
-- [Security](SECURITY.md) — private vulnerability reporting
+- [Security](https://github.com/uinaf/healthd/security/policy) — private vulnerability reporting
 - [Operator skill](skills/healthd-operator/SKILL.md) — install and operate on a host

@@ -61,7 +61,7 @@ More complete host profiles: [examples/current-host.toml](examples/current-host.
 - [Architecture](docs/ARCHITECTURE.md) — components, lifecycle, design choices
 - [Contributing](CONTRIBUTING.md) — setup, verify, pull requests
 - [Releases](docs/RELEASES.md) — Conventional Commits publish path
-- [Security](SECURITY.md) — private vulnerability reporting
+- [Security](https://github.com/uinaf/healthd/security/policy) — private vulnerability reporting
 
 ## License
 

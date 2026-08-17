@@ -33,7 +33,7 @@ go test ./e2e/cli/... -v
 - Use Conventional Commits (`feat:`, `fix:`, `docs:`, …) — they drive releases
 - Fill the pull request template and include validation evidence
 - Update docs when behavior or commands change
-- Keep vulnerability reports out of public issues; use [Security](SECURITY.md)
+- Keep vulnerability reports out of public issues; use [Security](https://github.com/uinaf/healthd/security/policy)
 
 ## Releases
 
