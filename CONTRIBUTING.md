@@ -37,11 +37,6 @@ go test ./e2e/cli/... -v
 
 ## Releases
 
-Successful pushes to protected `main` evaluate Conventional Commits after
-`verify` passes. `fix`, `perf`, and `refactor` publish patches; `feat`
-publishes a minor; breaking changes publish a major; and docs, test, chore,
-build, and CI changes do not publish.
-
-The release job mints a short-lived `uinaf-releaser` token inside the
-`release` Environment, creates the tag and GitHub Release, and updates the
-Homebrew tap. See [Releases](docs/RELEASES.md) for the complete contract.
+Pushes to protected `main` publish automatically from Conventional Commits
+after `verify` passes. [Releases](docs/RELEASES.md) is the canonical contract:
+bump table, pipeline, and credentials.
