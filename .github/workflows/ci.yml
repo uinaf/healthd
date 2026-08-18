@@ -210,7 +210,7 @@ jobs:
 
       - name: Attest build provenance
         if: steps.tag.outputs.present == 'true' && steps.release-state.outputs.published != 'true'
-        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
           subject-path: "dist/healthd_*.tar.gz"
 
