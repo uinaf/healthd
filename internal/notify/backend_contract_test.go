@@ -12,7 +12,7 @@ import (
 	"github.com/uinaf/healthd/internal/runner"
 )
 
-func TestParseCooldownAndDispatchEmpty(t *testing.T) {
+func TestParseCooldown(t *testing.T) {
 	t.Parallel()
 
 	if d, err := ParseCooldown(""); err != nil || d != 0 {
@@ -24,12 +24,17 @@ func TestParseCooldownAndDispatchEmpty(t *testing.T) {
 	if _, err := ParseCooldown("-1s"); err == nil || !strings.Contains(err.Error(), "non-negative") {
 		t.Fatalf("expected non-negative error, got %v", err)
 	}
+}
+
+func TestDispatchRejectsAnEmptyNotifierSet(t *testing.T) {
+	t.Parallel()
+
 	if err := Dispatch(context.Background(), Event{}, nil); err == nil || !strings.Contains(err.Error(), "no notifiers configured") {
 		t.Fatalf("expected no notifiers error, got %v", err)
 	}
 }
 
-func TestBuildNotifiersFilterAndErrors(t *testing.T) {
+func TestBuildNotifiersFiltersAndValidatesBackends(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.NotifyConfig{Backends: []config.NotifyBackendConfig{
@@ -78,7 +83,7 @@ func TestBuildNotifiersFilterAndErrors(t *testing.T) {
 	}
 }
 
-func TestCommandWebhookAndNtfyNotifyBranches(t *testing.T) {
+func TestBackendsReportDeliveryFailures(t *testing.T) {
 	t.Parallel()
 
 	cmdNotifier := &commandNotifier{name: "cmd", command: `echo fail; exit 2`, timeout: time.Second}
@@ -153,7 +158,7 @@ func TestCommandWebhookAndNtfyNotifyBranches(t *testing.T) {
 	}
 }
 
-func TestStateForResultWarnBranch(t *testing.T) {
+func TestStateForResultMapsHealthStates(t *testing.T) {
 	t.Parallel()
 
 	if got := StateForResult(runner.CheckResult{Passed: true}); got != StateOK {

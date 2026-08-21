@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/uinaf/healthd/internal/config"
 )
@@ -287,21 +286,20 @@ func strPtr(v string) *string {
 func TestRunChecksPerCheckTimeoutOverride(t *testing.T) {
 	check := config.CheckConfig{
 		Name:    "override-timeout",
-		Command: "sleep 0.1",
-		Timeout: "300ms",
+		Command: "true",
+		Timeout: "1s",
 	}
 
-	start := time.Now()
-	results := RunChecks(context.Background(), []config.CheckConfig{check}, "50ms")
-	elapsed := time.Since(start)
+	results := RunChecks(
+		context.Background(),
+		[]config.CheckConfig{check},
+		"not-a-duration",
+	)
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
-	if results[0].TimedOut {
-		t.Fatalf("expected per-check timeout override to prevent timeout, got %+v", results[0])
-	}
-	if elapsed < 80*time.Millisecond {
-		t.Fatalf("check finished too quickly, timeout override likely ignored: %v", elapsed)
+	if !results[0].Passed || results[0].TimedOut {
+		t.Fatalf("expected valid per-check timeout to override invalid default, got %+v", results[0])
 	}
 }

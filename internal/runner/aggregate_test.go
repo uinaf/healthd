@@ -2,7 +2,7 @@ package runner
 
 import "testing"
 
-func TestAllPassed(t *testing.T) {
+func TestAllPassedIgnoresCanceledChecksButNotFailures(t *testing.T) {
 	t.Parallel()
 
 	if !AllPassed([]CheckResult{{Passed: true}, {Passed: true}}) {

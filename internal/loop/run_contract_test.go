@@ -14,35 +14,57 @@ import (
 	"github.com/uinaf/healthd/internal/config"
 )
 
-func TestRunAdditionalBranches(t *testing.T) {
+func TestRunRejectsInvalidSchedulerAndNotifierConfiguration(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	if err := Run(context.Background(), config.Config{Interval: "bad"}, io.Discard); err == nil || !strings.Contains(err.Error(), "parse schedule interval") {
-		t.Fatalf("expected interval parse error, got %v", err)
-	}
-
-	cfgCooldown := config.Config{
+	valid := config.Config{
 		Interval: "10ms",
 		Timeout:  "1s",
 		Checks:   []config.CheckConfig{{Name: "ok", Command: "true"}},
-		Notify:   config.NotifyConfig{Cooldown: "bad"},
 	}
-	if err := Run(context.Background(), cfgCooldown, io.Discard); err == nil || !strings.Contains(err.Error(), "parse cooldown") {
-		t.Fatalf("expected cooldown parse error, got %v", err)
+	invalidCooldown := valid
+	invalidCooldown.Notify.Cooldown = "bad"
+	invalidBackend := valid
+	invalidBackend.Notify.Backends = []config.NotifyBackendConfig{{
+		Type: "unsupported",
+	}}
+
+	tests := []struct {
+		name    string
+		config  config.Config
+		message string
+	}{
+		{
+			name:    "schedule interval",
+			config:  config.Config{Interval: "bad"},
+			message: "parse schedule interval",
+		},
+		{
+			name:    "notification cooldown",
+			config:  invalidCooldown,
+			message: "parse cooldown",
+		},
+		{
+			name:    "notification backend",
+			config:  invalidBackend,
+			message: "unsupported backend type",
+		},
 	}
 
-	cfgBackend := config.Config{
-		Interval: "10ms",
-		Timeout:  "1s",
-		Checks:   []config.CheckConfig{{Name: "ok", Command: "true"}},
-		Notify: config.NotifyConfig{Backends: []config.NotifyBackendConfig{{
-			Type: "unsupported",
-		}}},
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := Run(context.Background(), test.config, io.Discard)
+			if err == nil || !strings.Contains(err.Error(), test.message) {
+				t.Fatalf("expected %q error, got %v", test.message, err)
+			}
+		})
 	}
-	if err := Run(context.Background(), cfgBackend, io.Discard); err == nil || !strings.Contains(err.Error(), "unsupported backend type") {
-		t.Fatalf("expected unsupported backend error, got %v", err)
-	}
+}
+
+func TestRunReportsNotifierFailureAndPersistsAlert(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
 
 	cfgRun := config.Config{
 		Interval: "20ms",
@@ -79,8 +101,6 @@ func TestRunFailThenRecoverWritesBothAlerts(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	marker := filepath.Join(t.TempDir(), "state")
-	// First tick fails (missing marker); later ticks pass once the marker exists.
-	// A short-lived helper flips the marker after the first failure alert.
 	checkCmd := fmt.Sprintf(`test -f %q`, marker)
 
 	cfg := config.Config{

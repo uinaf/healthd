@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestExpandPathAndValidateNotifyBackendBranches(t *testing.T) {
+func TestExpandPathAndValidateNotifyBackend(t *testing.T) {
 	t.Parallel()
 
 	if _, err := expandPath(" "); err == nil || !strings.Contains(err.Error(), "path is empty") {
