@@ -165,7 +165,7 @@ jobs:
             echo "found tag at HEAD: ${tag}"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "no tag at HEAD — skipping GoReleaser"
+            echo "no tag at HEAD; skipping GoReleaser"
           fi
 
       - name: Inspect GitHub Release state

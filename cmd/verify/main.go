@@ -193,11 +193,10 @@ var (
 	packageNoStatementsLine = regexp.MustCompile(`^ok\s+(\S+)\s+\S+\s+coverage:\s+\[no statements\]$`)
 )
 
-// parsePackageCoverage parses `go test` stdout and returns coverage for tested packages with statements.
-// If expected > 0 but we matched zero result lines, returns an error so a silent `go test` output format
-// change fails the verifier instead of letting the per-package gate vacuously pass. (Packages with no
-// _test.go files print a non-matching bare line with no "ok" prefix, so a partial match count is normal —
-// only zero matches is a red flag.)
+// parsePackageCoverage returns coverage for tested packages with statements.
+// It fails when `go test` emits no matching package results, so an output format
+// change cannot bypass per-package coverage. Packages without _test.go files
+// emit a bare line, which makes partial match counts valid.
 func parsePackageCoverage(output string, expected int) ([]packageCoverage, error) {
 	var covered []packageCoverage
 	noStatements := 0

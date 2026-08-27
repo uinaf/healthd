@@ -165,7 +165,7 @@ func isContextInterrupted(runErr error, ctx, parent context.Context) bool {
 	}
 	var exitErr *exec.ExitError
 	if errors.As(runErr, &exitErr) && exitErr.ExitCode() >= 0 {
-		// Process called exit(N) — keep that outcome even if shutdown raced in.
+		// Preserve an explicit process exit when shutdown races with it.
 		return false
 	}
 	return true
@@ -256,7 +256,7 @@ func evaluateExpectations(expect config.ExpectConfig, stdout string, exitCode in
 	if expect.Min != nil || expect.Max != nil {
 		value, err := strconv.ParseFloat(trimmed, 64)
 		if err != nil {
-			// Do not echo stdout into Reason — it flows to alerts.log and notifiers.
+			// Reason reaches alerts.log and notifiers, so it must not echo stdout.
 			return false, "expected numeric output"
 		}
 		if expect.Min != nil && value < *expect.Min {
