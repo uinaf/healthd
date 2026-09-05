@@ -44,6 +44,11 @@ stateDiagram-v2
   Failing --> Failing: still failing (cooldown suppresses)
 ```
 
+Numeric expectations reject NaN output and NaN `min`/`max` bounds. Infinity
+retains numeric ordering: `+Inf` exceeds finite maxima, `-Inf` falls below
+finite minima, and infinite bounds remain valid. Invalid numeric output uses
+a fixed failure reason without copying the output into alerts.
+
 ## Design decisions
 
 | Decision | Choice | Why |

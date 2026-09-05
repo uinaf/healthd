@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"regexp"
@@ -255,7 +256,7 @@ func evaluateExpectations(expect config.ExpectConfig, stdout string, exitCode in
 
 	if expect.Min != nil || expect.Max != nil {
 		value, err := strconv.ParseFloat(trimmed, 64)
-		if err != nil {
+		if err != nil || math.IsNaN(value) {
 			// Reason reaches alerts.log and notifiers, so it must not echo stdout.
 			return false, "expected numeric output"
 		}
