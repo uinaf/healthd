@@ -78,7 +78,13 @@ func AllPassed(results []CheckResult) bool {
 	return true
 }
 
+var errCheckTimeout = errors.New("check timeout")
+
 func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout string) CheckResult {
+	return runCheckWithCommand(parent, check, defaultTimeout, RunCommand)
+}
+
+func runCheckWithCommand(parent context.Context, check config.CheckConfig, defaultTimeout string, runCommand func(context.Context, string, []string) (CommandOutput, error)) CheckResult {
 	start := time.Now()
 	result := CheckResult{
 		Name:      check.Name,
@@ -96,16 +102,16 @@ func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout s
 		return result
 	}
 
-	ctx, cancel := context.WithTimeout(parent, timeout)
+	ctx, cancel := context.WithTimeoutCause(parent, timeout, errCheckTimeout)
 	defer cancel()
 
-	output, runErr := RunCommand(ctx, check.Command, mergedEnv(check.Env))
+	output, runErr := runCommand(ctx, check.Command, mergedEnv(check.Env))
 	result.Stdout = output.Stdout
 	result.Stderr = output.Stderr
 	result.Duration = time.Since(start)
 
-	if ctx.Err() == context.DeadlineExceeded && parent.Err() == nil {
-		// Check-local timeout only when the parent loop context is still live.
+	if errors.Is(runErr, errCheckTimeout) {
+		// The supervisor records which timeout won before cleanup begins.
 		result.TimedOut = true
 		result.ExitCode = -1
 		result.Reason = "timed out"
@@ -115,7 +121,7 @@ func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout s
 	// Only mark canceled when the command was actually interrupted. A process
 	// that already exited with a normal status must keep that result even if
 	// the parent context is shutting down.
-	if isContextInterrupted(runErr, ctx, parent) {
+	if errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
 		result.Canceled = true
 		result.ExitCode = -1
 		result.Reason = "canceled"
@@ -151,26 +157,6 @@ func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout s
 	}
 
 	return result
-}
-
-// isContextInterrupted reports whether the command failed because the run
-// context was canceled/deadline-killed, rather than a normal process exit.
-func isContextInterrupted(runErr error, ctx, parent context.Context) bool {
-	if runErr == nil {
-		return false
-	}
-	if errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
-		return true
-	}
-	if ctx.Err() == nil && parent.Err() == nil {
-		return false
-	}
-	var exitErr *exec.ExitError
-	if errors.As(runErr, &exitErr) && exitErr.ExitCode() >= 0 {
-		// Preserve an explicit process exit when shutdown races with it.
-		return false
-	}
-	return true
 }
 
 func resolveTimeout(checkTimeout string, defaultTimeout string) (time.Duration, error) {

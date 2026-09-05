@@ -230,6 +230,7 @@ func TestWaitForExitPrefersExitAtCancellationBoundary(t *testing.T) {
 		if err := waitForExit(observation, cmd.Process.Pid); err != nil {
 			t.Fatalf("observe released child: %v", err)
 		}
+		awaitZombie(t, cmd.Process.Pid)
 		cancel()
 	}}
 	if err := waitForExit(ctx, cmd.Process.Pid); err != nil {
@@ -240,5 +241,71 @@ func TestWaitForExitPrefersExitAtCancellationBoundary(t *testing.T) {
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 7 {
 		t.Fatalf("exit status lost or leader reaped early: %v", err)
+	}
+}
+
+func TestRunCheckClassifiesObservedOutcomeAfterCleanup(t *testing.T) {
+	exit7 := exec.Command("sh", "-c", "exit 7").Run()
+	if exit7 == nil {
+		t.Fatal("expected fixture exit 7")
+	}
+	for _, tc := range []struct {
+		name                                  string
+		deadline                              bool
+		parentCancel                          bool
+		observed                              error
+		wantTimeout, wantCanceled, wantPassed bool
+		wantExit                              int
+		wantReason                            string
+	}{
+		{name: "completed exit after local deadline", deadline: true, wantPassed: true, wantExit: 0, wantReason: "ok"},
+		{name: "ordinary failure after local deadline", deadline: true, observed: exit7, wantExit: 7, wantReason: "expected exit_code=0, got 7"},
+		{name: "drain failure after local deadline", deadline: true, observed: &commandExecutionError{cause: exec.ErrWaitDelay}, wantExit: -1, wantReason: "WaitDelay"},
+		{name: "drain failure after parent cancellation", parentCancel: true, observed: &commandExecutionError{cause: exec.ErrWaitDelay}, wantExit: -1, wantReason: "WaitDelay"},
+		{name: "supervision failure after parent cancellation", parentCancel: true, observed: &commandExecutionError{cause: errors.New("observation failed")}, wantExit: -1, wantReason: "observation failed"},
+		{name: "completed exit after parent cancellation", parentCancel: true, wantPassed: true, wantExit: 0, wantReason: "ok"},
+		{name: "observed local timeout before parent cancellation", deadline: true, parentCancel: true, observed: &commandExecutionError{cause: errors.Join(context.DeadlineExceeded, errCheckTimeout)}, wantTimeout: true, wantExit: -1, wantReason: "timed out"},
+		{name: "observed parent cancellation", parentCancel: true, observed: &commandExecutionError{cause: context.Canceled}, wantCanceled: true, wantExit: -1, wantReason: "canceled"},
+		{name: "observed parent deadline", observed: &commandExecutionError{cause: context.DeadlineExceeded}, wantCanceled: true, wantExit: -1, wantReason: "canceled"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parent, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			timeout := "1s"
+			if tc.deadline {
+				timeout = "1ms"
+			}
+			// The command boundary supplies an already-observed outcome after cleanup
+			// changes the contexts. This makes classification races deterministic.
+			result := runCheckWithCommand(parent, config.CheckConfig{Name: "synthetic", Command: "unused"}, timeout, func(ctx context.Context, _ string, _ []string) (CommandOutput, error) {
+				if tc.deadline {
+					<-ctx.Done()
+				}
+				if tc.parentCancel {
+					cancel()
+				}
+				return CommandOutput{}, tc.observed
+			})
+			if result.TimedOut != tc.wantTimeout || result.Canceled != tc.wantCanceled || result.Passed != tc.wantPassed || result.ExitCode != tc.wantExit || !strings.Contains(result.Reason, tc.wantReason) {
+				t.Fatalf("observed outcome changed during cleanup: %+v", result)
+			}
+		})
+	}
+}
+
+func TestRunCommandRetainsInterruptionCause(t *testing.T) {
+	for _, preStart := range []bool{false, true} {
+		t.Run(strconv.FormatBool(preStart), func(t *testing.T) {
+			cause := errors.New("fixture timeout")
+			ctx, cancel := context.WithTimeoutCause(context.Background(), 10*time.Millisecond, cause)
+			defer cancel()
+			if preStart {
+				<-ctx.Done()
+			}
+			_, err := RunCommand(ctx, "sleep 3", nil)
+			if !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, cause) {
+				t.Fatalf("interruption cause lost: %v", err)
+			}
+		})
 	}
 }

@@ -18,3 +18,19 @@ func assertProcessStopped(t *testing.T, pid int) {
 	}
 	t.Errorf("child %d still live", pid)
 }
+
+func awaitZombie(t *testing.T, pid int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		processes, err := unix.SysctlKinfoProcSlice("kern.proc.pid", pid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if containsOnlyZombieLeader(processes, pid) {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("released leader did not become an unreaped zombie")
+}

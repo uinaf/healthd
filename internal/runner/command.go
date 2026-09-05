@@ -30,7 +30,7 @@ type CommandOutput struct {
 // signaled. Commands must not daemonize or leave this process group.
 func RunCommand(ctx context.Context, command string, env []string) (CommandOutput, error) {
 	if err := ctx.Err(); err != nil {
-		return CommandOutput{}, &commandExecutionError{cause: err}
+		return CommandOutput{}, &commandExecutionError{cause: interruptionCause(ctx, err)}
 	}
 	cmd := exec.Command("sh", "-c", command)
 	cmd.Env = env
@@ -63,6 +63,9 @@ func RunCommand(ctx context.Context, command string, env []string) (CommandOutpu
 	// the last group signal, even when a child outlives the shell.
 	pid := cmd.Process.Pid
 	watchErr := waitForExit(ctx, pid)
+	if errors.Is(watchErr, context.Canceled) || errors.Is(watchErr, context.DeadlineExceeded) {
+		watchErr = interruptionCause(ctx, watchErr)
+	}
 	var cleanupErr error
 	if watchErr != nil {
 		cleanupErr = signalGroup(pid, syscall.SIGTERM)
@@ -111,4 +114,14 @@ func signalGroup(pid int, signal syscall.Signal) error {
 		return nil
 	}
 	return err
+}
+
+// Retain both the standard context error and its first-winner cause before
+// cleanup, so callers never infer the outcome from later context changes.
+func interruptionCause(ctx context.Context, err error) error {
+	cause := context.Cause(ctx)
+	if cause == nil || errors.Is(err, cause) {
+		return err
+	}
+	return errors.Join(err, cause)
 }
