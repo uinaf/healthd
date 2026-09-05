@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -185,5 +186,59 @@ func TestRunCommandAllowsTermCleanup(t *testing.T) {
 	<-done
 	if output.Stdout != "cleaned" || !errors.Is(runErr, context.Canceled) {
 		t.Fatalf("TERM cleanup/cancellation lost: output=%q err=%v", output.Stdout, runErr)
+	}
+}
+
+// Done is first read after the watcher misses an exit. Release the child at
+// exactly that boundary, and independently observe its exit without reaping it.
+type exitOnDoneContext struct {
+	context.Context
+	beforeDone func()
+	once       sync.Once
+}
+
+func (c *exitOnDoneContext) Done() <-chan struct{} {
+	c.once.Do(c.beforeDone)
+	return c.Context.Done()
+}
+
+func TestWaitForExitPrefersExitAtCancellationBoundary(t *testing.T) {
+	cmd := exec.Command("sh", "-c", "read ignored; exit 7")
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	waited := false
+	t.Cleanup(func() {
+		_ = stdin.Close()
+		if !waited {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}
+	})
+	parent, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ctx := &exitOnDoneContext{Context: parent, beforeDone: func() {
+		if err := stdin.Close(); err != nil {
+			t.Fatal(err)
+		}
+		observation, stop := context.WithTimeout(context.Background(), time.Second)
+		defer stop()
+		if err := waitForExit(observation, cmd.Process.Pid); err != nil {
+			t.Fatalf("observe released child: %v", err)
+		}
+		cancel()
+	}}
+	if err := waitForExit(ctx, cmd.Process.Pid); err != nil {
+		t.Fatalf("already-observable exit lost to cancellation: %v", err)
+	}
+	err = cmd.Wait()
+	waited = true
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 7 {
+		t.Fatalf("exit status lost or leader reaped early: %v", err)
 	}
 }

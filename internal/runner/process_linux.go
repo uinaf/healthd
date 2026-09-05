@@ -27,7 +27,22 @@ func waitForExit(ctx context.Context, pid int) error {
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			// Observe once more after cancellation wins the select: exit may have
+			// arrived since the prior poll. WNOWAIT still reserves the leader's PID.
+			for {
+				var final unix.Siginfo
+				err := unix.Waitid(unix.P_PID, pid, &final, unix.WEXITED|unix.WNOHANG|unix.WNOWAIT, nil)
+				if errors.Is(err, unix.EINTR) {
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				if final.Signo != 0 {
+					return nil
+				}
+				return ctx.Err()
+			}
 		case <-ticker.C:
 		}
 	}

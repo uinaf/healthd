@@ -43,7 +43,22 @@ func waitForExit(ctx context.Context, pid int) error {
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			// Exit may have arrived after the timed poll. Give an already-observable
+			// exit precedence over cancellation without releasing the leader's PID.
+			for {
+				immediate := unix.Timespec{}
+				count, err := unix.Kevent(queue, nil, events, &immediate)
+				if errors.Is(err, unix.EINTR) {
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				if count != 0 {
+					return nil
+				}
+				return ctx.Err()
+			}
 		default:
 		}
 	}
