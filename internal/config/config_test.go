@@ -295,3 +295,31 @@ func writeTempConfig(t *testing.T, content string) string {
 	}
 	return path
 }
+
+func TestNumericSpecialBounds(t *testing.T) {
+	for _, tc := range []struct{ name, bounds, wantError string }{
+		{"nan minimum", "min = nan", "min must not be NaN"},
+		{"nan maximum", "max = nan", "max must not be NaN"},
+		{"positive nan", "min = +nan", "min must not be NaN"},
+		{"negative nan", "max = -nan", "max must not be NaN"},
+		{"infinite range", "min = -inf\nmax = +inf", ""},
+		{"infinite minimum", "min = +inf", ""},
+		{"infinite maximum", "max = -inf", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			content := "[[check]]\nname = 'metric'\ncommand = 'printf 999'\n[check.expect]\n" + tc.bounds + "\n"
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := LoadFromPath(path)
+			if tc.wantError == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+				t.Fatalf("expected %q, got %v", tc.wantError, err)
+			}
+		})
+	}
+}

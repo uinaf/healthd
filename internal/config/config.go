@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -174,6 +175,12 @@ func validateEnvField(name string, env map[string]string) error {
 }
 
 func validateExpectField(name string, expect ExpectConfig) error {
+	if expect.Min != nil && math.IsNaN(*expect.Min) {
+		return fmt.Errorf("%s min must not be NaN", name)
+	}
+	if expect.Max != nil && math.IsNaN(*expect.Max) {
+		return fmt.Errorf("%s max must not be NaN", name)
+	}
 	if expect.Min != nil && expect.Max != nil && *expect.Min > *expect.Max {
 		return fmt.Errorf("%s min must be less than or equal to max", name)
 	}

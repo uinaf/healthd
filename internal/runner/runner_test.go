@@ -303,3 +303,30 @@ func TestRunChecksPerCheckTimeoutOverride(t *testing.T) {
 		t.Fatalf("expected valid per-check timeout to override invalid default, got %+v", results[0])
 	}
 }
+
+func TestNumericSpecialValues(t *testing.T) {
+	minValue, maxValue := 0.0, 1.0
+	for _, tc := range []struct {
+		name, command string
+		expect        config.ExpectConfig
+		passed        bool
+	}{
+		{"nan minimum", "printf NaN", config.ExpectConfig{Min: &minValue}, false},
+		{"nan maximum", "printf NaN", config.ExpectConfig{Max: &maxValue}, false},
+		{"nan range", "printf NaN", config.ExpectConfig{Min: &minValue, Max: &maxValue}, false},
+		{"positive infinity minimum", "printf +Inf", config.ExpectConfig{Min: &minValue}, true},
+		{"positive infinity maximum", "printf +Inf", config.ExpectConfig{Max: &maxValue}, false},
+		{"negative infinity maximum", "printf -- -Inf", config.ExpectConfig{Max: &maxValue}, true},
+		{"negative infinity minimum", "printf -- -Inf", config.ExpectConfig{Min: &minValue}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result := RunChecks(context.Background(), []config.CheckConfig{{Name: "metric", Command: tc.command, Expect: tc.expect}}, "1s")[0]
+			if result.Passed != tc.passed {
+				t.Fatalf("unexpected result: %+v", result)
+			}
+			if strings.Contains(tc.name, "nan") && result.Reason != "expected numeric output" {
+				t.Fatalf("unexpected NaN reason: %q", result.Reason)
+			}
+		})
+	}
+}
