@@ -15,6 +15,9 @@ Conventional Commits drive the bump (see `.releaserc.json`):
 
 ## Pipeline
 
+Verification and release use standard GitHub-hosted `ubuntu-24.04` runners,
+preserving Ubuntu 24.04 x64 execution for this public repository.
+
 1. `verify` runs with read-only credentials
 2. Protected `release` Environment mints a short-lived `uinaf-releaser` installation token scoped to `healthd` + `homebrew-tap`
 3. `semantic-release` creates the version tag and a mutable draft GitHub
