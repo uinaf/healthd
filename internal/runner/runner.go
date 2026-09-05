@@ -99,17 +99,9 @@ func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout s
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "sh", "-c", check.Command)
-	cmd.Env = mergedEnv(check.Env)
-
-	stdout := newLimitedBuffer(maxCaptureBytes)
-	stderr := newLimitedBuffer(maxCaptureBytes)
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-
-	runErr := cmd.Run()
-	result.Stdout = stdout.String()
-	result.Stderr = stderr.String()
+	output, runErr := RunCommand(ctx, check.Command, mergedEnv(check.Env))
+	result.Stdout = output.Stdout
+	result.Stderr = output.Stderr
 	result.Duration = time.Since(start)
 
 	if ctx.Err() == context.DeadlineExceeded && parent.Err() == nil {
@@ -130,6 +122,12 @@ func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout s
 		return result
 	}
 
+	var executionErr *commandExecutionError
+	if errors.As(runErr, &executionErr) {
+		result.Reason = executionErr.Error()
+		return result
+	}
+
 	result.ExitCode = extractExitCode(runErr)
 	passed, reason := evaluateExpectations(check.Expect, result.Stdout, result.ExitCode)
 	result.Passed = passed
@@ -141,7 +139,7 @@ func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout s
 
 	// Truncated stdout is only a failure when expectations depend on stdout.
 	// Exit-code-only checks keep their result; capture is still capped for memory.
-	if stdout.Truncated() && expectsStdout(check.Expect) {
+	if output.StdoutTruncated && expectsStdout(check.Expect) {
 		result.Passed = false
 		switch {
 		case result.Reason == "" || result.Reason == "ok":
@@ -160,6 +158,9 @@ func runCheck(parent context.Context, check config.CheckConfig, defaultTimeout s
 func isContextInterrupted(runErr error, ctx, parent context.Context) bool {
 	if runErr == nil {
 		return false
+	}
+	if errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) {
+		return true
 	}
 	if ctx.Err() == nil && parent.Err() == nil {
 		return false

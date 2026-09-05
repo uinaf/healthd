@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
 	"sync"
@@ -246,8 +245,7 @@ func (n *commandNotifier) Notify(ctx context.Context, event Event) error {
 	cmdCtx, cancel := context.WithTimeout(ctx, n.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(cmdCtx, "sh", "-c", n.command)
-	cmd.Env = append(sortedEnviron(),
+	env := append(sortedEnviron(),
 		"HEALTHD_EVENT_CHECK="+event.CheckName,
 		"HEALTHD_EVENT_GROUP="+event.Group,
 		"HEALTHD_EVENT_STATE="+string(event.State),
@@ -256,9 +254,9 @@ func (n *commandNotifier) Notify(ctx context.Context, event Event) error {
 		"HEALTHD_EVENT_EXIT_CODE="+fmt.Sprintf("%d", event.ExitCode),
 	)
 
-	output, err := cmd.CombinedOutput()
+	output, err := runner.RunCommand(cmdCtx, n.command, env)
 	if err != nil {
-		return fmt.Errorf("command failed: %w (%s)", err, strings.TrimSpace(string(output)))
+		return fmt.Errorf("command failed: %w (%s)", err, strings.TrimSpace(output.Stdout+output.Stderr))
 	}
 	return nil
 }

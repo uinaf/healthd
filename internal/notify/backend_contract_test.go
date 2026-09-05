@@ -2,9 +2,15 @@ package notify
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -188,4 +194,99 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+func TestCommandNotifierBoundedCancellation(t *testing.T) {
+	for _, parentCancel := range []bool{false, true} {
+		t.Run(fmt.Sprintf("parentCancel=%v", parentCancel), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			timeout := 100 * time.Millisecond
+			if parentCancel {
+				timeout = 2 * time.Second
+				timer := time.AfterFunc(100*time.Millisecond, cancel)
+				defer timer.Stop()
+			}
+			notifier := &commandNotifier{name: "synthetic", command: `trap '' TERM; sleep 3 & wait`, timeout: timeout}
+			start := time.Now()
+			err := notifier.Notify(ctx, Event{})
+			if elapsed := time.Since(start); elapsed > time.Second {
+				t.Errorf("completion exceeded bound: %v", elapsed)
+			}
+			want := context.DeadlineExceeded
+			if parentCancel {
+				want = context.Canceled
+			}
+			if !errors.Is(err, want) {
+				t.Errorf("expected %v, got %v", want, err)
+			}
+		})
+	}
+}
+
+func TestCommandNotifierBoundsFailureOutput(t *testing.T) {
+	notifier := &commandNotifier{name: "synthetic", command: `head -c 200000 /dev/zero; head -c 200000 /dev/zero >&2; exit 1`, timeout: time.Second}
+	err := notifier.Notify(context.Background(), Event{})
+	if err == nil {
+		t.Fatal("expected failure")
+	}
+	if len(err.Error()) > 2*64*1024+100 {
+		t.Fatalf("unbounded failure output: %d bytes", len(err.Error()))
+	}
+}
+
+func TestNotifierDetachedPipeHelper(t *testing.T) {
+	mode := os.Getenv("HEALTHD_TEST_PIPE_MODE")
+	if mode == "" {
+		return
+	}
+	if mode == "child" {
+		time.Sleep(2 * time.Second)
+		_ = os.Stdout.Close()
+		_ = os.Stderr.Close()
+		if err := os.WriteFile(os.Getenv("HEALTHD_TEST_PIPE_DONE"), []byte("done"), 0o600); err != nil {
+			os.Exit(2)
+		}
+		os.Exit(0)
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestNotifierDetachedPipeHelper$")
+	cmd.Env = append(os.Environ(), "HEALTHD_TEST_PIPE_MODE=child")
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		os.Exit(2)
+	}
+	os.Exit(0)
+}
+
+func TestCommandNotifierPreservesPipeFailure(t *testing.T) {
+	t.Setenv("HELPER", os.Args[0])
+	t.Setenv("HEALTHD_TEST_PIPE_MODE", "parent")
+	// Remove only the race runtime's artificial post-exit delay in the fixture.
+	t.Setenv("GORACE", "atexit_sleep_ms=0")
+	for _, exit := range []string{"0", "7"} {
+		t.Run("exit"+exit, func(t *testing.T) {
+			doneFile := filepath.Join(t.TempDir(), "detached.done")
+			t.Cleanup(func() {
+				deadline := time.Now().Add(3 * time.Second)
+				for time.Now().Before(deadline) {
+					if _, err := os.Stat(doneFile); err == nil {
+						return
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+				t.Error("detached fixture did not finish")
+			})
+			t.Setenv("HEALTHD_TEST_PIPE_DONE", doneFile)
+			notifier := &commandNotifier{name: "synthetic", command: `"$HELPER" -test.run='^TestNotifierDetachedPipeHelper$'; exit ` + exit, timeout: 3 * time.Second}
+			start := time.Now()
+			err := notifier.Notify(context.Background(), Event{})
+			if !errors.Is(err, exec.ErrWaitDelay) {
+				t.Errorf("pipe failure lost: %v", err)
+			}
+			if elapsed := time.Since(start); elapsed > time.Second {
+				t.Errorf("pipe drain exceeded bound: %v", elapsed)
+			}
+		})
+	}
 }
