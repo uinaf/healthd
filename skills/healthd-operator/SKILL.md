@@ -40,7 +40,7 @@ Use this skill for practical host operations. Prefer reversible steps and show c
 2. **Install/build binary**
    - Preferred install: `brew install uinaf/tap/healthd`
    - Direct installer alternative: `curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash`
-   - Optional pinned version: `curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash -s -- v0.1.0`
+   - Optional pinned version: `curl -fsSL https://raw.githubusercontent.com/uinaf/healthd/main/scripts/install.sh | bash -s -- <release-tag>` (a tag from `https://github.com/uinaf/healthd/releases`)
    - Source fallback for local dev: `go build -o ./bin/healthd .` or `go install .`.
 3. **First-run config bootstrap**
    - Run `healthd init` (default: `~/.config/healthd/config.toml`).
