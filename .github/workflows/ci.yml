@@ -18,7 +18,6 @@ jobs:
       group: verify-${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]') }}
-    name: verify (fmt + lint + test + coverage)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
