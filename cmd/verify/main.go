@@ -20,7 +20,7 @@ import (
 const (
 	defaultCoverageThreshold        = 80.0
 	defaultPackageCoverageThreshold = 70.0
-	golangCILintVersion             = "v1.64.8"
+	golangCILintVersion             = "v2.13.2"
 )
 
 type packageCoverage struct {
@@ -156,7 +156,7 @@ func runLint() error {
 	}
 
 	fmt.Printf("  golangci-lint not found in PATH, running go run @%s\n", golangCILintVersion)
-	lintViaGo := exec.Command("go", "run", "github.com/golangci/golangci-lint/cmd/golangci-lint@"+golangCILintVersion, "run", "./...")
+	lintViaGo := exec.Command("go", "run", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@"+golangCILintVersion, "run", "./...")
 	lintViaGo.Stdout = os.Stdout
 	lintViaGo.Stderr = os.Stderr
 	if err := lintViaGo.Run(); err != nil {

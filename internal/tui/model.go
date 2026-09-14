@@ -208,9 +208,10 @@ func (m Model) renderAlerts() string {
 	for i := len(m.alerts) - 1; i >= 0; i-- {
 		alert := m.alerts[i]
 		stateStyle := m.styles.Fail
-		if alert.State == "recovered" {
+		switch alert.State {
+		case "recovered":
 			stateStyle = m.styles.Pass
-		} else if alert.State == "warn" {
+		case "warn":
 			stateStyle = m.styles.TimedOut
 		}
 
