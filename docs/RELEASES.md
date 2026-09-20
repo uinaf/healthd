@@ -19,7 +19,7 @@ Verification and release use standard GitHub-hosted `ubuntu-24.04` runners,
 preserving Ubuntu 24.04 x64 execution for this public repository.
 
 1. `verify` runs with read-only credentials
-2. Protected `release` Environment mints a short-lived `uinaf-releaser` installation token scoped to `healthd` + `homebrew-tap`
+2. Protected `release` Environment mints a short-lived `uinaf-ci` installation token scoped to `healthd` + `homebrew-tap`
 3. `semantic-release` creates the version tag and a mutable draft GitHub
    Release; exact-tag lookup fails if the expected Release is unavailable
 4. GoReleaser adopts the draft, publishes darwin/arm64 + darwin/amd64 archives, and updates `uinaf/homebrew-tap`
@@ -37,5 +37,5 @@ Sources of truth: `.github/workflows/ci.yml`, `.releaserc.json`, `.goreleaser.ya
 
 | Name | Kind |
 |---|---|
-| `UINAF_RELEASE_APP_CLIENT_ID` | variable |
-| `UINAF_RELEASE_APP_PRIVATE_KEY` | secret |
+| `UINAF_CI_APP_CLIENT_ID` | variable |
+| `UINAF_CI_APP_PRIVATE_KEY` | secret |
