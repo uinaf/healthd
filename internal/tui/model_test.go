@@ -75,7 +75,6 @@ func TestViewRendersResults(t *testing.T) {
 		{Name: "b", Group: "grp", Passed: false, Reason: "exit_code=1", Duration: 3 * time.Millisecond},
 	})
 
-	// Simulate Init -> checksMsg
 	cmd := m.Init()
 	msg := cmd()
 	updated, _ := m.Update(msg)
@@ -132,7 +131,6 @@ func TestNonWatchModeQuits(t *testing.T) {
 	msg := cmd()
 	_, nextCmd := m.Update(msg)
 
-	// Non-watch should return tea.Quit
 	if nextCmd == nil {
 		t.Fatal("expected quit command, got nil")
 	}
