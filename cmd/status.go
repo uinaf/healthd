@@ -47,7 +47,6 @@ func newStatusCommand() *cobra.Command {
 				return err
 			}
 
-			// Non-watch: run checks and render directly (no TTY needed).
 			initCmd := model.Init()
 			msg := initCmd()
 			updated, _ := model.Update(msg)

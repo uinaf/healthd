@@ -67,7 +67,6 @@ func (t *Tracker) EventFor(result runner.CheckResult) (Event, bool) {
 
 	if !seen {
 		if current == StateOK {
-			// Record baseline OK without alerting.
 			t.states[result.Name] = current
 			return Event{}, false
 		}

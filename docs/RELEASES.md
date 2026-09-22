@@ -25,6 +25,15 @@ preserving Ubuntu 24.04 x64 execution for this public repository.
 4. GoReleaser adopts the draft, publishes darwin/arm64 + darwin/amd64 archives, and updates `uinaf/homebrew-tap`
 5. The workflow publishes the draft only after provenance succeeds, then verifies GitHub's immutable-release attestation
 
+The `verify` job scopes its concurrency group to itself so a superseded PR
+push cancels only its own verify run, never an in-flight `release` job that may
+already have created a tag. GitHub links bot commits only when the noreply
+email is `{user-id}+{app-slug}[bot]@users.noreply.github.com`, so the workflow
+resolves the numeric user id before running semantic-release. Archives are
+named `healthd_v0.X.Y_darwin_<arch>.tar.gz` and contain only the binary; the
+leading `v` keeps the Homebrew formula URL pattern stable and `files: [none*]`
+disables GoReleaser's README/LICENSE auto-include.
+
 Published releases and their `v*` tags are immutable. A retry detects an
 already-published release and skips artifact mutation; a partial draft remains
 mutable and can safely resume through GoReleaser.
