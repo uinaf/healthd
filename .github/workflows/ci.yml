@@ -11,9 +11,6 @@ permissions:
 
 jobs:
   verify:
-    # Concurrency is scoped to this job so superseded PR pushes cancel their
-    # own verify runs WITHOUT cancelling an in-flight `release` job that may
-    # already have created a tag/GitHub Release.
     concurrency:
       group: verify-${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
@@ -49,9 +46,6 @@ jobs:
       - name: Run verifier (fmt + lint + test + coverage gate)
         run: go run ./cmd/verify
 
-  # Tag, release notes, GitHub Release, binaries, and Homebrew tap update
-  # all happen here on push to `main` after `verify` passes. Conventional
-  # Commits drive the version. No manual `scripts/release.sh` step.
   release:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]') }}
     name: release
@@ -89,7 +83,6 @@ jobs:
           permission-issues: write
           permission-pull-requests: write
 
-      # GitHub links bot commits when the noreply email uses `{user-id}+{slug}[bot]@…`.
       - name: Resolve release bot identity
         id: release-bot-identity
         env:
@@ -124,9 +117,6 @@ jobs:
           cache-dependency-path: |
             **/go.sum
 
-      # Decides the next version from Conventional Commits and creates the tag
-      # plus a mutable draft release. The workflow publishes that draft only
-      # after GoReleaser and provenance verification finish successfully.
       - name: Run semantic-release
         id: release
         uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
@@ -140,18 +130,9 @@ jobs:
           GIT_COMMITTER_NAME: ${{ steps.release-bot.outputs.app-slug }}[bot]
           GIT_COMMITTER_EMAIL: ${{ steps.release-bot-identity.outputs.user-id }}+${{ steps.release-bot.outputs.app-slug }}[bot]@users.noreply.github.com
 
-      # semantic-release creates the tag via the GitHub Release API; pull all
-      # tags so we can detect one at HEAD (whether just-created or already
-      # present from a previous partial-failure run).
       - name: Fetch tags
         run: git fetch --tags --force
 
-      # Gate GoReleaser on "is there a tag at HEAD?" rather than
-      # `steps.release.outputs.new_release_published`. Re-running the job
-      # after a partial failure (semantic-release succeeded, GoReleaser
-      # failed mid-flight) still resumes the existing mutable draft because
-      # the tag is now there. A later state check skips mutation entirely once
-      # that release has already been published.
       - name: Detect tag at HEAD
         id: tag
         shell: bash
